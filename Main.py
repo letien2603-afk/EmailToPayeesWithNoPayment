@@ -399,11 +399,11 @@ if uploaded_file is not None:
                             st.session_state.preview_clicked = False
                             
                         with col_btn1:
-                            if st.button("🔍 (1) Preview Emails", use_container_width=True):
+                            if st.button("🔍 Preview Emails", use_container_width=True):
                                 st.session_state.preview_clicked = True
                                 
                         with col_btn2:
-                            send_clicked = st.button("🚀 (2) Send Emails", use_container_width=True)
+                            send_clicked = st.button("🚀 Send Emails", use_container_width=True)
                             
                         # Handle Preview Trigger
                         if st.session_state.preview_clicked:
