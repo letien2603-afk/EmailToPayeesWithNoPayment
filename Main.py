@@ -173,29 +173,37 @@ def generate_email_html(participant, goal1_val, goal2_val, has_goal2, ytd_earnin
 
 # App UI Design
 st.title("📧 Millie Agro SIP Payroll Email Automator")
-st.markdown("Hệ thống tự động hóa liên kết danh sách nhân sự, lọc điều kiện và chuẩn bị/gửi email báo cáo lương SIP.")
+st.markdown("Automated system to match participant lists, apply filtering conditions, and prepare/send SIP payroll email reports.")
 
 # Sidebar Configuration
-st.sidebar.header("⚙️ Cấu Hình Hệ Thống")
+st.sidebar.header("⚙️ System Configuration")
 
-sender_email = st.sidebar.text_input("1. Email người gửi (Gmail):", placeholder="your_email@gmail.com")
-password = st.sidebar.text_input("2. Mật khẩu ứng dụng Gmail (16 ký tự):", type="password", placeholder="xxxx xxxx xxxx xxxx")
-cc_input = st.sidebar.text_input("3. CC Emails (Ngăn cách bởi dấu phẩy):", placeholder="manager@example.com, hr@example.com")
+sender_email = st.sidebar.text_input("1. Sender Email (Gmail):", placeholder="your_email@gmail.com")
+password = st.sidebar.text_input("2. Gmail App Password (16 characters):", type="password", placeholder="xxxx xxxx xxxx xxxx")
+cc_input = st.sidebar.text_input("3. CC Emails (Separated by commas):", placeholder="manager@example.com, hr@example.com")
 
 st.sidebar.markdown("---")
-st.sidebar.header("🗓️ Thông Tin Chu Kỳ Lương")
-pay_date = st.sidebar.text_input("4. Pay Date (Ngày thanh toán):", value="2026-09-15")
-sip_month = st.sidebar.selectbox("5. SIP month to pay (Tháng SIP thanh toán):", options=[3, 6, 9, 12], index=2)
+st.sidebar.header("✉️ Email Subject Configuration")
+email_subject_template = st.sidebar.text_input(
+    "Email Subject:", 
+    value="Millie Agro SIP Performance and Payroll Summary - {participant}",
+    help="Use the placeholder `{participant}` to dynamically replace with each recipient's name."
+)
+
+st.sidebar.markdown("---")
+st.sidebar.header("🗓️ Payroll Cycle Information")
+pay_date = st.sidebar.text_input("4. Pay Date:", value="2026-09-15")
+sip_month = st.sidebar.selectbox("5. SIP month to pay:", options=[3, 6, 9, 12], index=2)
 
 # File uploader on main screen
-st.subheader("📁 Bước 1: Tải lên File Lương (payfile_Dummy)")
-uploaded_file = st.file_uploader("Chọn file Excel payfile_Dummy (.xlsx)", type=["xlsx"])
+st.subheader("📁 Step 1: Upload Payroll File (payfile_Dummy)")
+uploaded_file = st.file_uploader("Choose payfile_Dummy Excel file (.xlsx)", type=["xlsx"])
 
 # Parse CC list
 cc_list = [e.strip() for e in cc_input.split(",") if e.strip()]
 
 if uploaded_file is not None:
-    st.success("Tải file thành công! Đang xử lý dữ liệu...")
+    st.success("File uploaded successfully! Processing data...")
     
     try:
         # Load excel file
@@ -217,9 +225,9 @@ if uploaded_file is not None:
                 break
                 
         if paysheet_name is None:
-            st.error(f"Không thể tìm thấy sheet 'Paysheet' hoặc 'Pay Sheet' trong file. Các sheet hiện có: {sheet_names}")
+            st.error(f"Could not find 'Paysheet' or 'Pay Sheet' sheet in the file. Available sheets: {sheet_names}")
         elif oic_sheet_name is None:
-            st.error(f"Không thể tìm thấy sheet 'OIC Participant Details' trong file. Các sheet hiện có: {sheet_names}")
+            st.error(f"Could not find 'OIC Participant Details' sheet in the file. Available sheets: {sheet_names}")
         else:
             # Load Dataframes
             paysheet_df = pd.read_excel(xls, sheet_name=paysheet_name)
@@ -235,7 +243,7 @@ if uploaded_file is not None:
             email_col_oic = find_column(oic_df, ["E-Mail Address", "Email Address", "Email", "E-Mail"])
             
             if not participant_col_pay or not participant_col_oic or not email_col_oic:
-                st.error("Cấu trúc file Excel không khớp! Vui lòng kiểm tra các cột '*Participant' và 'E-Mail Address'.")
+                st.error("Excel file structure mismatch! Please check '*Participant' and 'E-Mail Address' columns.")
             else:
                 # Match email addresses (Step 3)
                 email_map = oic_df.set_index(participant_col_oic)[email_col_oic].to_dict()
@@ -246,7 +254,7 @@ if uploaded_file is not None:
                 net_comm_col = find_column(paysheet_df, ["Net Commissions Payable", "Net Commission Payable"])
                 
                 if not include_col or not net_comm_col:
-                    st.error("Không tìm thấy cột điều kiện lọc 'Include...' hoặc 'Net Commissions Payable'!")
+                    st.error("Filtering condition columns 'Include...' or 'Net Commissions Payable' not found!")
                 else:
                     # Filter: Include in Payfile == 1 and Net Commissions < 0
                     filtered_df = paysheet_df[
@@ -255,8 +263,8 @@ if uploaded_file is not None:
                     ]
                     
                     total_matches = len(filtered_df)
-                    st.subheader("📊 Bước 2: Thống kê & Kiểm tra kết quả lọc")
-                    st.info(f"Tìm thấy **{total_matches}** nhân viên thỏa mãn điều kiện lọc (Include in PayFile = 1 và Net Commissions < 0).")
+                    st.subheader("📊 Step 2: Statistics & Filtering Results Check")
+                    st.info(f"Found **{total_matches}** participants matching the filtering criteria (Include in PayFile = 1 and Net Commissions < 0).")
                     
                     if total_matches > 0:
                         # Display preview dataframe
@@ -384,7 +392,7 @@ if uploaded_file is not None:
                             })
                         
                         # Actions
-                        st.subheader("🛠️ Bước 3: Xem trước & Gửi Email")
+                        st.subheader("🛠️ Step 3: Preview & Send Emails")
                         col_btn1, col_btn2 = st.columns(2)
                         
                         # Store in session state to handle action states cleanly
@@ -400,19 +408,22 @@ if uploaded_file is not None:
                             
                         # Handle Preview Trigger
                         if st.session_state.preview_clicked:
-                            st.markdown("### 📝 Xem trước nội dung email của từng nhân viên:")
-                            st.caption("Các email dưới đây chưa được gửi đi thật. Bạn có thể kiểm tra định dạng bảng và nội dung.")
+                            st.markdown("### 📝 Preview of each participant's email:")
+                            st.caption("The emails below have not been sent yet. You can verify the table format and content.")
                             for item in email_records:
                                 part_name = item['participant']
                                 part_email = item['email']
                                 html_body = item['html']
+                                
+                                # Process the subject dynamically
+                                resolved_subject = email_subject_template.replace("{participant}", part_name)
                                 
                                 with st.expander(f"👤 {part_name} ({part_email})"):
                                     st.markdown(f"**From:** `{sender_email if sender_email else 'your_email@gmail.com'}`")
                                     st.markdown(f"**To:** `{part_email}`")
                                     if cc_list:
                                         st.markdown(f"**CC:** `{', '.join(cc_list)}`")
-                                    st.markdown(f"**Subject:** `Millie Agro SIP Performance and Payroll Summary - {part_name}`")
+                                    st.markdown(f"**Subject:** `{resolved_subject}`")
                                     st.markdown("---")
                                     # Render raw HTML in streamlit safely
                                     st.components.v1.html(html_body, height=450, scrolling=True)
@@ -420,15 +431,15 @@ if uploaded_file is not None:
                         # Handle Send Trigger
                         if send_clicked:
                             if not sender_email or not password:
-                                st.error("⚠️ Vui lòng điền đầy đủ Email người gửi và Mật khẩu ứng dụng Gmail ở menu bên trái trước khi gửi!")
+                                st.error("⚠️ Please fill in both the Sender Email and Gmail App Password in the sidebar before sending!")
                             else:
-                                with st.status("🚀 Đang tiến hành kết nối máy chủ và gửi email...") as status:
+                                with st.status("🚀 Connecting to server and sending emails...") as status:
                                     try:
-                                        st.write("Đang kết nối tới Gmail SMTP...")
+                                        st.write("Connecting to Gmail SMTP...")
                                         server = smtplib.SMTP("smtp.gmail.com", 587)
                                         server.starttls()
                                         server.login(sender_email, password)
-                                        st.write("Đăng nhập thành công! Bắt đầu gửi email...")
+                                        st.write("Login successful! Starting email dispatch...")
                                         
                                         success_count = 0
                                         error_count = 0
@@ -440,9 +451,12 @@ if uploaded_file is not None:
                                             part_email = item['email']
                                             html_body = item['html']
                                             
+                                            # Process the subject dynamically
+                                            resolved_subject = email_subject_template.replace("{participant}", part_name)
+                                            
                                             # Create Multipart Email
                                             msg = MIMEMultipart('alternative')
-                                            msg['Subject'] = f"Millie Agro SIP Performance and Payroll Summary - {part_name}"
+                                            msg['Subject'] = resolved_subject
                                             msg['From'] = sender_email
                                             msg['To'] = part_email
                                             
@@ -459,26 +473,26 @@ if uploaded_file is not None:
                                             
                                             try:
                                                 server.sendmail(sender_email, to_addrs, msg.as_string())
-                                                st.write(f"✅ Gửi thành công tới: **{part_name}** ({part_email})")
+                                                st.write(f"✅ Successfully sent to: **{part_name}** ({part_email})")
                                                 success_count += 1
                                             except Exception as send_err:
-                                                st.write(f"❌ Lỗi khi gửi tới **{part_name}** ({part_email}): {send_err}")
+                                                st.write(f"❌ Error sending to **{part_name}** ({part_email}): {send_err}")
                                                 error_count += 1
                                                 
                                             progress_bar.progress((i + 1) / len(email_records))
                                             
                                         server.quit()
-                                        status.update(label="Đã hoàn thành quá trình gửi email!", state="complete", expanded=False)
+                                        status.update(label="Email dispatch process completed!", state="complete", expanded=False)
                                         st.balloons()
-                                        st.success(f"🎉 Đã gửi thành công **{success_count}** email. Thất bại: **{error_count}** email.")
+                                        st.success(f"🎉 Successfully sent **{success_count}** emails. Failed: **{error_count}** emails.")
                                         
                                     except Exception as smtp_err:
-                                        st.error(f"❌ Lỗi kết nối Gmail SMTP: {smtp_err}")
-                                        status.update(label="Gặp lỗi trong quá trình kết nối!", state="error", expanded=False)
+                                        st.error(f"❌ Gmail SMTP Connection Error: {smtp_err}")
+                                        status.update(label="An error occurred during connection!", state="error", expanded=False)
                     else:
-                        st.warning("⚠️ Không có nhân viên nào thỏa mãn tiêu chí lọc hiện tại.")
+                        st.warning("⚠️ No participants match the current filtering criteria.")
                         
     except Exception as e:
-        st.error(f"Đã xảy ra lỗi khi đọc file Excel: {e}")
+        st.error(f"An error occurred while reading the Excel file: {e}")
 else:
-    st.info("💡 Vui lòng kéo thả hoặc chọn file excel payfile_Dummy (.xlsx) để bắt đầu.")
+    st.info("💡 Please drag and drop or select the payfile_Dummy (.xlsx) Excel file to start.")
