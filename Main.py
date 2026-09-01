@@ -165,7 +165,9 @@ def generate_email_html(participant, goal1_val, goal2_val, has_goal2, ytd_earnin
         </tr>
       </table>
       
-      <p>Regards</p>
+      <p>Regards,
+      Sales Compensation
+      </p>
     </body>
     </html>
     """
