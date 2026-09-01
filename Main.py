@@ -172,21 +172,20 @@ def generate_email_html(participant, goal1_val, goal2_val, has_goal2, ytd_earnin
     return html
 
 # App UI Design
-st.title("📧 Millie Agro SIP Payroll Email Automator")
-st.markdown("Automated system to match participant lists, apply filtering conditions, and prepare/send SIP payroll email reports.")
+st.title("📧 No SIP Payments Email Automator")
 
 # Sidebar Configuration
-st.sidebar.header("⚙️ System Configuration")
+st.sidebar.header("⚙️ Fill in the required information")
 
 sender_email = st.sidebar.text_input("1. Sender Email (Gmail):", placeholder="your_email@gmail.com")
 password = st.sidebar.text_input("2. Gmail App Password (16 characters):", type="password", placeholder="xxxx xxxx xxxx xxxx")
 cc_input = st.sidebar.text_input("3. CC Emails (Separated by commas):", placeholder="manager@example.com, hr@example.com")
 
 st.sidebar.markdown("---")
-st.sidebar.header("✉️ Email Subject Configuration")
+st.sidebar.header("✉️ Email Subject")
 email_subject_template = st.sidebar.text_input(
     "Email Subject:", 
-    value="Millie Agro SIP Performance and Payroll Summary - {participant}",
+    value="June SIP Payout Notification",
     help="Use the placeholder `{participant}` to dynamically replace with each recipient's name."
 )
 
@@ -196,8 +195,8 @@ pay_date = st.sidebar.text_input("4. Pay Date:", value="2026-09-15")
 sip_month = st.sidebar.selectbox("5. SIP month to pay:", options=[3, 6, 9, 12], index=2)
 
 # File uploader on main screen
-st.subheader("📁 Step 1: Upload Payroll File (payfile_Dummy)")
-uploaded_file = st.file_uploader("Choose payfile_Dummy Excel file (.xlsx)", type=["xlsx"])
+st.subheader("📁 Upload Payroll File")
+uploaded_file = st.file_uploader("Choose payfile file (.xlsx)", type=["xlsx"])
 
 # Parse CC list
 cc_list = [e.strip() for e in cc_input.split(",") if e.strip()]
@@ -495,4 +494,4 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"An error occurred while reading the Excel file: {e}")
 else:
-    st.info("💡 Please drag and drop or select the payfile_Dummy (.xlsx) Excel file to start.")
+    st.info("💡 Please drag and drop or select the payfile (.xlsx) Excel file to start.")
