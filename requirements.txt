@@ -1,0 +1,6 @@
+streamlit
+pandas
+smtplib
+email.mime.multipart
+email.mime.text
+sys
