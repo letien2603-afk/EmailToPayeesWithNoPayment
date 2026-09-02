@@ -58,8 +58,22 @@ def check_column_exists(df, aliases):
     """Check if any of the aliases exist in the dataframe columns."""
     return find_column(df, aliases) is not None
 
-def generate_email_html(participant, goal1_val, goal2_val, has_goal2, ytd_earnings, months_data, ytd_sum, pay_date):
-    """Generate professional Excel-style HTML table for email body."""
+def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_earning, has_goal2, ytd_earnings, months_data, ytd_sum, pay_date):
+    """Generate professional Excel-style HTML table for email body with updated Table2 logic."""
+    # Determine Goal names and rows based on has_goal2 (Territory Attainment > 0%)
+    if has_goal2:
+        goal1_label = "Goal 1"
+        goal2_row_html = f"""
+        <tr>
+          <td class="left-align">Goal 2</td>
+          <td class="center-align">{format_pct(goal2_val)}</td>
+          <td class="right-align">{format_curr(goal2_earning)}</td>
+        </tr>
+        """
+    else:
+        goal1_label = "Goal"
+        goal2_row_html = ""
+
     # Header & Intro text
     html = f"""
     <html>
@@ -80,7 +94,7 @@ def generate_email_html(participant, goal1_val, goal2_val, has_goal2, ytd_earnin
         font-size: 11pt;
         color: #000000;
         background-color: #ffffff;
-        min-width: 320px;
+        min-width: 360px;
         margin-top: 15px;
         margin-bottom: 15px;
       }}
@@ -98,6 +112,9 @@ def generate_email_html(participant, goal1_val, goal2_val, has_goal2, ytd_earnin
       .left-align {{
         text-align: left;
       }}
+      .center-align {{
+        text-align: center;
+      }}
       .right-align {{
         text-align: right;
       }}
@@ -111,56 +128,56 @@ def generate_email_html(participant, goal1_val, goal2_val, has_goal2, ytd_earnin
       <table class="paysheet-table">
         <!-- Participant Row -->
         <tr style="border: none;">
-          <td colspan="2" class="bold" style="border: none; font-size: 12pt; padding: 6px 8px; text-align: left;">{participant}</td>
+          <td colspan="3" class="bold" style="border: none; font-size: 12pt; padding: 6px 8px; text-align: left;">{participant}</td>
         </tr>
         
-        <!-- Goal 1 -->
+        <!-- Column Headers (as requested in Table2 structure) -->
         <tr>
-          <td class="left-align">Goal 1 FY Attainment</td>
-          <td class="right-align">{format_pct(goal1_val)}</td>
+          <td style="border: none;"></td>
+          <td class="bold center-align">FY Attainment</td>
+          <td class="bold right-align">YTD SIP Earned</td>
         </tr>
-    """
-    
-    # Goal 2 (if applicable)
-    if has_goal2:
-        html += f"""
-        <tr>
-          <td class="left-align">Goal 2 FY Attainment</td>
-          <td class="right-align">{format_pct(goal2_val)}</td>
-        </tr>
-        """
         
-    # YTD SIP Earnings
-    html += f"""
+        <!-- Goal 1 / Goal Row -->
+        <tr>
+          <td class="left-align">{goal1_label}</td>
+          <td class="center-align">{format_pct(goal1_val)}</td>
+          <td class="right-align">{format_curr(goal1_earning)}</td>
+        </tr>
+        
+        {goal2_row_html}
+        
+        <!-- Total YTD SIP Earned row -->
         <tr>
           <td class="left-align bold underline">YTD SIP Earned</td>
+          <td></td>
           <td class="right-align bold underline">{format_curr(ytd_earnings)}</td>
         </tr>
         
         <!-- Blank separator row -->
         <tr style="border: none; height: 15px;">
-          <td colspan="2" style="border: none; height: 15px;"></td>
+          <td colspan="3" style="border: none; height: 15px;"></td>
         </tr>
         
         <!-- Submitted to Payroll Header -->
         <tr style="border: none;">
-          <td colspan="2" class="bold" style="border: none; text-align: left; padding: 4px 8px;">Submitted to Payroll</td>
+          <td colspan="3" class="bold" style="border: none; text-align: left; padding: 4px 8px;">Submitted to Payroll</td>
         </tr>
     """
     
-    # Monthly Rows
+    # Monthly Rows (aligned to the 3-column format)
     for month_lbl, val in months_data:
         html += f"""
         <tr>
-          <td class="left-align">{month_lbl}</td>
+          <td colspan="2" class="left-align">{month_lbl}</td>
           <td class="right-align">{format_curr(val)}</td>
         </tr>
         """
         
-    # YTD Sum Row (YTD SIP Paid)
+    # YTD Sum Row (YTD SIP Paid aligned under the earnings column)
     html += f"""
         <tr>
-          <td class="left-align bold underline">YTD SIP Paid</td>
+          <td colspan="2" class="left-align bold underline">YTD SIP Paid</td>
           <td class="right-align bold underline">{format_curr(ytd_sum)}</td>
         </tr>
       </table>
@@ -283,7 +300,7 @@ if uploaded_file is not None:
                             filtered_df = filtered_df[~filtered_df[participant_col_pay].astype(str).str.strip().str.lower().isin(exclude_list)]
                             st.info(f"🚫 **Excluded {len(to_exclude)} participant(s)** as requested: `{', '.join(to_exclude)}`")
                     
-                    # 2. Check for Missing Email Addresses and trigger warning (Requirement 2)
+                    # 2. Check for Missing Email Addresses and trigger warning
                     missing_email_df = filtered_df[filtered_df['Email'].isna() | (filtered_df['Email'].astype(str).str.strip() == '')]
                     if len(missing_email_df) > 0:
                         missing_names = missing_email_df[participant_col_pay].astype(str).str.strip().tolist()
@@ -298,7 +315,7 @@ if uploaded_file is not None:
                         # Display preview dataframe
                         display_cols = [participant_col_pay, 'Email', include_col, net_comm_col]
                         # Show some columns if exists
-                        for add_c in ["YTD ATTAINMENT", "Total YTD Earnings"]:
+                        for add_c in ["YTD ATTAINMENT", "YTD Earning", "TERRITORY YTD ATTAINMENT", "TERRITORY YTD EARNING"]:
                             found_col = find_column(paysheet_df, [add_c])
                             if found_col:
                                 display_cols.append(found_col)
@@ -311,17 +328,26 @@ if uploaded_file is not None:
                             participant = row[participant_col_pay]
                             recipient_email = row['Email']
                             
+                            # Retrieve Goal 1 metrics
                             goal1_val = get_row_val(row, paysheet_df, ["YTD ATTAINMENT", "YTD Attainment", "Goal 1 FY Attainment"])
+                            goal1_earning = get_row_val(row, paysheet_df, ["YTD Earning", "YTD Earnings", "Total YTD Earnings", "YTD SIP Earnings", "YTD SIP Earned"])
+                            goal1_earning_parsed = parse_value(goal1_earning)
+
+                            # Retrieve Goal 2 metrics
                             goal2_val = get_row_val(row, paysheet_df, ["TERRITORY YTD ATTAINMENT", "Territory YTD Attainment", "Goal 2 FY Attainment"])
-                            goal2_parsed = parse_value(goal2_val)
-                            has_goal2 = goal2_parsed != 0.0
+                            goal2_earning = get_row_val(row, paysheet_df, ["TERRITORY YTD EARNING", "Territory YTD Earning", "Territory YTD Earnings"])
                             
-                            ytd_earnings = get_row_val(row, paysheet_df, ["Total YTD Earnings", "YTD SIP Earnings", "YTD SIP Earned"])
+                            goal2_parsed = parse_value(goal2_val)
+                            has_goal2 = goal2_parsed > 0.0  # Show Goal 2 only if Territory YTD Attainment > 0%
+                            goal2_earning_parsed = parse_value(goal2_earning) if has_goal2 else 0.0
+                            
+                            # Dynamic YTD SIP Earned calculation based on has_goal2
+                            ytd_earnings_parsed = goal1_earning_parsed + goal2_earning_parsed
                             
                             months_data = []
                             monthly_sum = 0.0
                             
-                            # Jan & Feb
+                            # Jan & Feb (always included)
                             jan_val = parse_value(get_row_val(row, paysheet_df, ["January Paid (Q1 Month 1 Draw)", "Jan Paid (Q1 Month 1 Draw)"]))
                             feb_val = parse_value(get_row_val(row, paysheet_df, ["February Paid (Q1 Month 2 Draw)", "Feb Paid (Q1 Month 2 Draw)"]))
                             months_data.append(("Jan", jan_val))
@@ -402,9 +428,11 @@ if uploaded_file is not None:
                             email_html = generate_email_html(
                                 participant=participant,
                                 goal1_val=goal1_val,
+                                goal1_earning=goal1_earning_parsed,
                                 goal2_val=goal2_val,
+                                goal2_earning=goal2_earning_parsed,
                                 has_goal2=has_goal2,
-                                ytd_earnings=ytd_earnings,
+                                ytd_earnings=ytd_earnings_parsed,
                                 months_data=months_data,
                                 ytd_sum=monthly_sum,
                                 pay_date=pay_date
@@ -417,7 +445,7 @@ if uploaded_file is not None:
                             })
                         
                         # Actions
-                        st.subheader("🛠️ Step 3: Preview & Send Emails")
+                        st.subheader("🛠 " + "Step 3: Preview & Send Emails")
                         col_btn1, col_btn2 = st.columns(2)
                         
                         # Store in session state to handle action states cleanly
@@ -451,7 +479,7 @@ if uploaded_file is not None:
                                     st.markdown(f"**Subject:** `{resolved_subject}`")
                                     st.markdown("---")
                                     # Render raw HTML in streamlit safely
-                                    st.components.v1.html(html_body, height=450, scrolling=True)
+                                    st.components.v1.html(html_body, height=520, scrolling=True)
                                     
                         # Handle Send Trigger
                         if send_clicked:
