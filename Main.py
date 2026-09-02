@@ -218,7 +218,7 @@ sip_month = st.sidebar.selectbox("SIP month to pay:", options=["",3, 6, 9, 12])
 
 # File uploader on main screen
 st.subheader("📁 Step 1: Upload the Payfile")
-uploaded_file = st.file_uploader("Choose payfile_Dummy Excel file (.xlsx)", type=["xlsx"])
+uploaded_file = st.file_uploader("Choose the payfile file (.xlsx)", type=["xlsx"])
 
 # Parse CC list
 cc_list = [e.strip() for e in cc_input.split(",") if e.strip()]
