@@ -217,7 +217,7 @@ pay_date = st.sidebar.text_input("4. Pay Date:", value="2026-09-15")
 sip_month = st.sidebar.selectbox("5. SIP month to pay:", options=[3, 6, 9, 12], index=2)
 
 # File uploader on main screen
-st.subheader("📁 Step 1: Upload Payroll File (payfile_Dummy)")
+st.subheader("📁 Step 1: Upload Payroll File")
 uploaded_file = st.file_uploader("Choose payfile_Dummy Excel file (.xlsx)", type=["xlsx"])
 
 # Parse CC list
