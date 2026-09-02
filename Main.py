@@ -189,9 +189,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
     return html
 
 # App UI Design
-st.title("📧 Millie Agro SIP Payroll Email Automator")
-st.markdown("Automated system to match participant lists, apply filtering conditions, and prepare/send SIP payroll email reports.")
-
+st.title("📧 Payees with No SIP Payment - Email Automator")
 # Sidebar Configuration
 st.sidebar.header("⚙️ System Configuration")
 
@@ -443,7 +441,7 @@ if uploaded_file is not None:
                             })
                         
                         # Actions
-                        st.subheader("🛠 " + "Step 3: Preview & Send Emails")
+                        st.subheader("🛠️" + "Step 3: Preview & Send Emails")
                         col_btn1, col_btn2 = st.columns(2)
                         
                         # Store in session state to handle action states cleanly
@@ -451,11 +449,11 @@ if uploaded_file is not None:
                             st.session_state.preview_clicked = False
                             
                         with col_btn1:
-                            if st.button("🔍 (1) Preview Emails", use_container_width=True):
+                            if st.button("🔍Preview Emails", use_container_width=True):
                                 st.session_state.preview_clicked = True
                                 
                         with col_btn2:
-                            send_clicked = st.button("🚀 (2) Send Emails", use_container_width=True)
+                            send_clicked = st.button("🚀Send Emails", use_container_width=True)
                             
                         # Handle Preview Trigger
                         if st.session_state.preview_clicked:
