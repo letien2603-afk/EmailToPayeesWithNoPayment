@@ -203,8 +203,7 @@ st.sidebar.markdown("---")
 st.sidebar.header("✉️ Email Subject Configuration")
 email_subject_template = st.sidebar.text_input(
     "Email Subject:", 
-    value="Millie Agro SIP Performance and Payroll Summary - {participant}",
-    help="Use the placeholder `{participant}` to dynamically replace with each recipient's name."
+    placeholder="e.g. June SIP Payout Notification",
 )
 
 st.sidebar.markdown("---")
@@ -212,7 +211,6 @@ st.sidebar.header("🚫 Participant Exclusion")
 exclude_input = st.sidebar.text_area(
     "Exclude Participants (Comma-separated names):",
     placeholder="e.g. John Doe, Jane Smith",
-    help="Enter participant names exactly as they appear in the sheet to remove them from the preview and email lists."
 )
 
 st.sidebar.markdown("---")
