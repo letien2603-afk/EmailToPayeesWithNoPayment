@@ -206,7 +206,7 @@ email_subject_template = st.sidebar.text_input(
 
 st.sidebar.markdown("---")
 st.sidebar.header("🚫 Participant Exclusion")
-exclude_input = st.sidebar.text_area(
+exclude_input = st.sidebar.text_input(
     "Exclude Participants (Comma-separated names):",
     placeholder="e.g. John Doe, Jane Smith",
 )
