@@ -123,7 +123,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
     <body>
       <p>Hi {participant},</p>
       <p>For your information, you will not receive any SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong>.</p>
-      Please see the YTD payment breakdown below for more information:
+      <p>Please see the YTD payment breakdown below for more information:
       
       <table class="paysheet-table">
         <!-- Participant Row -->
@@ -353,11 +353,11 @@ if uploaded_file is not None:
                             # Mar
                             if sip_month == 3:
                                 mar_val = parse_value(get_row_val(row, paysheet_df, ["March True-up", "Mar True-up"]))
-                                months_data.append(("Mar", mar_val))
+                                months_data.append(("Mar (True-up)", mar_val))
                                 monthly_sum += mar_val
                             else:
                                 mar_val = parse_value(get_row_val(row, paysheet_df, ["March Paid (Q1 Month 3 True-up)", "Mar Paid (Q1 Month 3 True-up)", "March True-up"]))
-                                months_data.append(("Mar", mar_val))
+                                months_data.append(("Mar (True-up)", mar_val))
                                 monthly_sum += mar_val
                                 
                                 # Apr (Optional)
@@ -375,11 +375,11 @@ if uploaded_file is not None:
                                 # Jun
                                 if sip_month == 6:
                                     jun_val = parse_value(get_row_val(row, paysheet_df, ["Jun True-up", "June True-up", "Jun True Up"]))
-                                    months_data.append(("Jun", jun_val))
+                                    months_data.append(("Jun (True-up)", jun_val))
                                     monthly_sum += jun_val
                                 else:
                                     jun_val = parse_value(get_row_val(row, paysheet_df, ["June Paid (Q2 Month 3 True-up)", "Jun Paid (Q2 Month 3 True-up)"]))
-                                    months_data.append(("Jun", jun_val))
+                                    months_data.append(("Jun (True-up)", jun_val))
                                     monthly_sum += jun_val
                                     
                                     # Jul (Optional)
@@ -397,11 +397,11 @@ if uploaded_file is not None:
                                     # Sep
                                     if sip_month == 9:
                                         sep_val = parse_value(get_row_val(row, paysheet_df, ["Sep True-up", "September True-up", "Sep True Up"]))
-                                        months_data.append(("Sep", sep_val))
+                                        months_data.append(("Sep (True-up)", sep_val))
                                         monthly_sum += sep_val
                                     else:
                                         sep_val = parse_value(get_row_val(row, paysheet_df, ["Sep Paid (Q3 Month 3 True-up)", "September Paid (Q3 Month 3 True-up)"]))
-                                        months_data.append(("Sep", sep_val))
+                                        months_data.append(("Sep (True-up)", sep_val))
                                         monthly_sum += sep_val
                                         
                                         # Oct (Optional)
@@ -418,7 +418,7 @@ if uploaded_file is not None:
                                             
                                         # Dec
                                         dec_val = parse_value(get_row_val(row, paysheet_df, ["Dec True-up", "December True-up", "Dec True Up", "December Paid (Q4 Month 3 True-up)"]))
-                                        months_data.append(("Dec", dec_val))
+                                        months_data.append(("Dec (True-up)", dec_val))
                                         monthly_sum += dec_val
                                         
                             email_html = generate_email_html(
