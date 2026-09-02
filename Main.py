@@ -122,7 +122,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
     </head>
     <body>
       <p>Hi {participant},</p>
-      <p>For your information, you will not receive any SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong>.</p>
+      <p>For your information, you will not receive any SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because you have a negative true-up in the current month payout.</p>
       <p>Please see the YTD payment breakdown below for more information:</p>
       
       <table class="paysheet-table">
