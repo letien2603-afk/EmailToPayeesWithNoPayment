@@ -213,11 +213,11 @@ exclude_input = st.sidebar.text_input(
 
 st.sidebar.markdown("---")
 st.sidebar.header("🗓️ Payroll Cycle Information")
-pay_date = st.sidebar.text_input("4. Pay Date:", value="2026-09-15")
-sip_month = st.sidebar.selectbox("5. SIP month to pay:", options=[3, 6, 9, 12], index=2)
+pay_date = st.sidebar.text_input("Pay Date:", value="2026-09-15")
+sip_month = st.sidebar.selectbox("SIP month to pay:", options=[3, 6, 9, 12], index=2)
 
 # File uploader on main screen
-st.subheader("📁 Step 1: Upload Payroll File")
+st.subheader("📁 Step 1: Upload the Payfile")
 uploaded_file = st.file_uploader("Choose payfile_Dummy Excel file (.xlsx)", type=["xlsx"])
 
 # Parse CC list
@@ -286,7 +286,7 @@ if uploaded_file is not None:
                         (paysheet_df[net_comm_col].apply(parse_value) < 0)
                     ]
                     
-                    st.subheader("📊 Step 2: Statistics & Filtering Results Check")
+                    st.subheader("📊 Step 2: Filtering Results Check")
                     
                     # 1. Process Manual Exclusions
                     if exclude_list:
