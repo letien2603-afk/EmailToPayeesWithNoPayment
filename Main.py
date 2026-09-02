@@ -165,30 +165,37 @@ def generate_email_html(participant, goal1_val, goal2_val, has_goal2, ytd_earnin
         </tr>
       </table>
       
-      <p>Regards,</p>
-      <p>Sales Compensation</p>
-      </p>
+      <p>Regards</p>
     </body>
     </html>
     """
     return html
 
 # App UI Design
-st.title("📧 No SIP Payments Email Automator")
+st.title("📧 Millie Agro SIP Payroll Email Automator")
+st.markdown("Automated system to match participant lists, apply filtering conditions, and prepare/send SIP payroll email reports.")
 
 # Sidebar Configuration
-st.sidebar.header("⚙️ Fill in the required information")
+st.sidebar.header("⚙️ System Configuration")
 
 sender_email = st.sidebar.text_input("1. Sender Email (Gmail):", placeholder="your_email@gmail.com")
 password = st.sidebar.text_input("2. Gmail App Password (16 characters):", type="password", placeholder="xxxx xxxx xxxx xxxx")
 cc_input = st.sidebar.text_input("3. CC Emails (Separated by commas):", placeholder="manager@example.com, hr@example.com")
 
 st.sidebar.markdown("---")
-st.sidebar.header("✉️ Email Subject")
+st.sidebar.header("✉️ Email Subject Configuration")
 email_subject_template = st.sidebar.text_input(
     "Email Subject:", 
-    value="June SIP Payout Notification",
+    value="Millie Agro SIP Performance and Payroll Summary - {participant}",
     help="Use the placeholder `{participant}` to dynamically replace with each recipient's name."
+)
+
+st.sidebar.markdown("---")
+st.sidebar.header("🚫 Participant Exclusion")
+exclude_input = st.sidebar.text_area(
+    "Exclude Participants (Comma-separated names):",
+    placeholder="e.g. John Doe, Jane Smith",
+    help="Enter participant names exactly as they appear in the sheet to remove them from the preview and email lists."
 )
 
 st.sidebar.markdown("---")
@@ -197,11 +204,14 @@ pay_date = st.sidebar.text_input("4. Pay Date:", value="2026-09-15")
 sip_month = st.sidebar.selectbox("5. SIP month to pay:", options=[3, 6, 9, 12], index=2)
 
 # File uploader on main screen
-st.subheader("📁 Step 1:Upload Payroll File")
-uploaded_file = st.file_uploader("Choose payfile file (.xlsx)", type=["xlsx"])
+st.subheader("📁 Step 1: Upload Payroll File (payfile_Dummy)")
+uploaded_file = st.file_uploader("Choose payfile_Dummy Excel file (.xlsx)", type=["xlsx"])
 
 # Parse CC list
 cc_list = [e.strip() for e in cc_input.split(",") if e.strip()]
+
+# Parse exclusion list
+exclude_list = [name.strip().lower() for name in exclude_input.split(",") if name.strip()]
 
 if uploaded_file is not None:
     st.success("File uploaded successfully! Processing data...")
@@ -263,9 +273,26 @@ if uploaded_file is not None:
                         (paysheet_df[net_comm_col].apply(parse_value) < 0)
                     ]
                     
-                    total_matches = len(filtered_df)
                     st.subheader("📊 Step 2: Statistics & Filtering Results Check")
-                    st.info(f"Found **{total_matches}** participants matching the filtering criteria (Include in PayFile = 1 and Net Commissions < 0).")
+                    
+                    # 1. Process Manual Exclusions
+                    if exclude_list:
+                        raw_filtered_names = filtered_df[participant_col_pay].astype(str).str.strip().tolist()
+                        to_exclude = [name for name in raw_filtered_names if name.lower() in exclude_list]
+                        if to_exclude:
+                            filtered_df = filtered_df[~filtered_df[participant_col_pay].astype(str).str.strip().str.lower().isin(exclude_list)]
+                            st.info(f"🚫 **Excluded {len(to_exclude)} participant(s)** as requested: `{', '.join(to_exclude)}`")
+                    
+                    # 2. Check for Missing Email Addresses and trigger warning (Requirement 2)
+                    missing_email_df = filtered_df[filtered_df['Email'].isna() | (filtered_df['Email'].astype(str).str.strip() == '')]
+                    if len(missing_email_df) > 0:
+                        missing_names = missing_email_df[participant_col_pay].astype(str).str.strip().tolist()
+                        st.warning(f"⚠️ **Warning: Missing Email Address** for **{len(missing_email_df)}** participant(s): `{', '.join(missing_names)}`. They have been automatically removed from the active email and preview list.")
+                        # Remove participants with missing emails from sending list
+                        filtered_df = filtered_df[~(filtered_df['Email'].isna() | (filtered_df['Email'].astype(str).str.strip() == ''))]
+                    
+                    total_matches = len(filtered_df)
+                    st.success(f"Found **{total_matches}** active participant(s) for the email list (Include in PayFile = 1, Net Commissions < 0, not manually excluded, and has valid email).")
                     
                     if total_matches > 0:
                         # Display preview dataframe
@@ -284,9 +311,6 @@ if uploaded_file is not None:
                             participant = row[participant_col_pay]
                             recipient_email = row['Email']
                             
-                            if pd.isna(recipient_email) or not str(recipient_email).strip():
-                                continue
-                                
                             goal1_val = get_row_val(row, paysheet_df, ["YTD ATTAINMENT", "YTD Attainment", "Goal 1 FY Attainment"])
                             goal2_val = get_row_val(row, paysheet_df, ["TERRITORY YTD ATTAINMENT", "Territory YTD Attainment", "Goal 2 FY Attainment"])
                             goal2_parsed = parse_value(goal2_val)
@@ -401,11 +425,11 @@ if uploaded_file is not None:
                             st.session_state.preview_clicked = False
                             
                         with col_btn1:
-                            if st.button("🔍 Preview Emails", use_container_width=True):
+                            if st.button("🔍 (1) Preview Emails", use_container_width=True):
                                 st.session_state.preview_clicked = True
                                 
                         with col_btn2:
-                            send_clicked = st.button("🚀 Send Emails", use_container_width=True)
+                            send_clicked = st.button("🚀 (2) Send Emails", use_container_width=True)
                             
                         # Handle Preview Trigger
                         if st.session_state.preview_clicked:
@@ -496,4 +520,4 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"An error occurred while reading the Excel file: {e}")
 else:
-    st.info("💡 Please drag and drop or select the payfile (.xlsx) Excel file to start.")
+    st.info("💡 Please drag and drop or select the payfile_Dummy (.xlsx) Excel file to start.")
