@@ -58,8 +58,8 @@ def check_column_exists(df, aliases):
     """Check if any of the aliases exist in the dataframe columns."""
     return find_column(df, aliases) is not None
 
-def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_earning, has_goal2, ytd_earnings, months_data, ytd_sum, pay_date):
-    """Generate professional Excel-style HTML table for email body with updated Table2 logic."""
+def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_earning, has_goal2, ytd_earnings, months_data, ytd_sum, adjustments_data, pay_date):
+    """Generate professional Excel-style HTML table for email body with updated Table2 and Table3 logic."""
     # Determine Goal names and rows based on has_goal2 (Territory Attainment > 0%)
     if has_goal2:
         goal1_label = "Goal 1"
@@ -123,7 +123,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
     <body>
       <p>Hi {participant},</p>
       <p>For your information, you will not receive any SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong>.</p>
-      <p>Please see the YTD payment breakdown below for more information:
+      <p>Please see the YTD payment breakdown below for more information:</p>
       
       <table class="paysheet-table">
         <!-- Participant Row -->
@@ -180,6 +180,28 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
           <td colspan="2" class="left-align bold underline">YTD SIP Paid</td>
           <td class="right-align bold underline">{format_curr(ytd_sum)}</td>
         </tr>
+    """
+
+    # 1. Negative Adjustment Rows (as requested in Table 3 requirement 1)
+    for adj_title, adj_val in adjustments_data:
+        html += f"""
+        <tr>
+          <td colspan="2" class="left-align">{adj_title}</td>
+          <td class="right-align">{format_curr(adj_val)}</td>
+        </tr>
+        """
+
+    # 2. Current Month Payout Row calculation (Requirement 2)
+    # Value = (value of row above "YTD SIP Paid") + (sum of all rows between YTD SIP Paid and Current Month Payout)
+    last_month_val = months_data[-1][1] if months_data else 0.0
+    adjustments_sum = sum(val for lbl, val in adjustments_data)
+    current_month_payout = last_month_val + adjustments_sum
+
+    html += f"""
+        <tr>
+          <td colspan="2" class="left-align bold">Current Month Payout</td>
+          <td class="right-align bold">{format_curr(current_month_payout)}</td>
+        </tr>
       </table>
       
       <p>Regards</p>
@@ -189,7 +211,9 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
     return html
 
 # App UI Design
-st.title("📧 Payees with No SIP Payment - Email Automator")
+st.title("📧 Millie Agro SIP Payroll Email Automator")
+st.markdown("Automated system to match participant lists, apply filtering conditions, and prepare/send SIP payroll email reports.")
+
 # Sidebar Configuration
 st.sidebar.header("⚙️ System Configuration")
 
@@ -201,24 +225,26 @@ st.sidebar.markdown("---")
 st.sidebar.header("✉️ Email Subject Configuration")
 email_subject_template = st.sidebar.text_input(
     "Email Subject:", 
-    placeholder="e.g. June SIP Payout Notification",
+    value="Millie Agro SIP Performance and Payroll Summary - {participant}",
+    help="Use the placeholder `{participant}` to dynamically replace with each recipient's name."
 )
 
 st.sidebar.markdown("---")
 st.sidebar.header("🚫 Participant Exclusion")
-exclude_input = st.sidebar.text_input(
+exclude_input = st.sidebar.text_area(
     "Exclude Participants (Comma-separated names):",
     placeholder="e.g. John Doe, Jane Smith",
+    help="Enter participant names exactly as they appear in the sheet to remove them from the preview and email lists."
 )
 
 st.sidebar.markdown("---")
 st.sidebar.header("🗓️ Payroll Cycle Information")
-pay_date = st.sidebar.text_input("Pay Date:", placeholder="e.g. 09/15/2026")
-sip_month = st.sidebar.selectbox("SIP month to pay:", options=["",3, 6, 9, 12])
+pay_date = st.sidebar.text_input("4. Pay Date:", value="2026-09-15")
+sip_month = st.sidebar.selectbox("5. SIP month to pay:", options=[3, 6, 9, 12], index=2)
 
 # File uploader on main screen
-st.subheader("📁 Step 1: Upload the Payfile")
-uploaded_file = st.file_uploader("Choose the payfile file (.xlsx)", type=["xlsx"])
+st.subheader("📁 Step 1: Upload Payroll File (payfile_Dummy)")
+uploaded_file = st.file_uploader("Choose payfile_Dummy Excel file (.xlsx)", type=["xlsx"])
 
 # Parse CC list
 cc_list = [e.strip() for e in cc_input.split(",") if e.strip()]
@@ -286,7 +312,7 @@ if uploaded_file is not None:
                         (paysheet_df[net_comm_col].apply(parse_value) < 0)
                     ]
                     
-                    st.subheader("📊 Step 2: Filtering Results Check")
+                    st.subheader("📊 Step 2: Statistics & Filtering Results Check")
                     
                     # 1. Process Manual Exclusions
                     if exclude_list:
@@ -353,11 +379,11 @@ if uploaded_file is not None:
                             # Mar
                             if sip_month == 3:
                                 mar_val = parse_value(get_row_val(row, paysheet_df, ["March True-up", "Mar True-up"]))
-                                months_data.append(("Mar (True-up)", mar_val))
+                                months_data.append(("Mar", mar_val))
                                 monthly_sum += mar_val
                             else:
                                 mar_val = parse_value(get_row_val(row, paysheet_df, ["March Paid (Q1 Month 3 True-up)", "Mar Paid (Q1 Month 3 True-up)", "March True-up"]))
-                                months_data.append(("Mar (True-up)", mar_val))
+                                months_data.append(("Mar", mar_val))
                                 monthly_sum += mar_val
                                 
                                 # Apr (Optional)
@@ -375,11 +401,11 @@ if uploaded_file is not None:
                                 # Jun
                                 if sip_month == 6:
                                     jun_val = parse_value(get_row_val(row, paysheet_df, ["Jun True-up", "June True-up", "Jun True Up"]))
-                                    months_data.append(("Jun (True-up)", jun_val))
+                                    months_data.append(("Jun", jun_val))
                                     monthly_sum += jun_val
                                 else:
                                     jun_val = parse_value(get_row_val(row, paysheet_df, ["June Paid (Q2 Month 3 True-up)", "Jun Paid (Q2 Month 3 True-up)"]))
-                                    months_data.append(("Jun (True-up)", jun_val))
+                                    months_data.append(("Jun", jun_val))
                                     monthly_sum += jun_val
                                     
                                     # Jul (Optional)
@@ -397,11 +423,11 @@ if uploaded_file is not None:
                                     # Sep
                                     if sip_month == 9:
                                         sep_val = parse_value(get_row_val(row, paysheet_df, ["Sep True-up", "September True-up", "Sep True Up"]))
-                                        months_data.append(("Sep (True-up)", sep_val))
+                                        months_data.append(("Sep", sep_val))
                                         monthly_sum += sep_val
                                     else:
                                         sep_val = parse_value(get_row_val(row, paysheet_df, ["Sep Paid (Q3 Month 3 True-up)", "September Paid (Q3 Month 3 True-up)"]))
-                                        months_data.append(("Sep (True-up)", sep_val))
+                                        months_data.append(("Sep", sep_val))
                                         monthly_sum += sep_val
                                         
                                         # Oct (Optional)
@@ -418,8 +444,17 @@ if uploaded_file is not None:
                                             
                                         # Dec
                                         dec_val = parse_value(get_row_val(row, paysheet_df, ["Dec True-up", "December True-up", "Dec True Up", "December Paid (Q4 Month 3 True-up)"]))
-                                        months_data.append(("Dec (True-up)", dec_val))
+                                        months_data.append(("Dec", dec_val))
                                         monthly_sum += dec_val
+
+                            # Extract negative adjustments (SDR/ISR MBO, Prior Period/2025 True-up, One Time True-up, Leadership Payout)
+                            adjustments_data = []
+                            for adj_col_name in ["SDR/ISR MBO", "Prior Period/2025 True-up", "One Time True-up", "Leadership Payout"]:
+                                actual_col = find_column(paysheet_df, [adj_col_name])
+                                if actual_col:
+                                    val = parse_value(row[actual_col])
+                                    if val < 0:
+                                        adjustments_data.append((adj_col_name, val))
                                         
                             email_html = generate_email_html(
                                 participant=participant,
@@ -431,6 +466,7 @@ if uploaded_file is not None:
                                 ytd_earnings=ytd_earnings_parsed,
                                 months_data=months_data,
                                 ytd_sum=monthly_sum,
+                                adjustments_data=adjustments_data,
                                 pay_date=pay_date
                             )
                             
@@ -441,7 +477,7 @@ if uploaded_file is not None:
                             })
                         
                         # Actions
-                        st.subheader("🛠️" + "Step 3: Preview & Send Emails")
+                        st.subheader("🛠 Step 3: Preview & Send Emails")
                         col_btn1, col_btn2 = st.columns(2)
                         
                         # Store in session state to handle action states cleanly
@@ -449,11 +485,11 @@ if uploaded_file is not None:
                             st.session_state.preview_clicked = False
                             
                         with col_btn1:
-                            if st.button("🔍Preview Emails", use_container_width=True):
+                            if st.button("🔍 (1) Preview Emails", use_container_width=True):
                                 st.session_state.preview_clicked = True
                                 
                         with col_btn2:
-                            send_clicked = st.button("🚀Send Emails", use_container_width=True)
+                            send_clicked = st.button("🚀 (2) Send Emails", use_container_width=True)
                             
                         # Handle Preview Trigger
                         if st.session_state.preview_clicked:
@@ -544,4 +580,4 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"An error occurred while reading the Excel file: {e}")
 else:
-    st.info("💡 Please drag and drop or select the payfile to start.")
+    st.info("💡 Please drag and drop or select the payfile_Dummy (.xlsx) Excel file to start.")
