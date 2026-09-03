@@ -289,8 +289,8 @@ exclude_input = st.sidebar.text_input(
 
 st.sidebar.markdown("---")
 st.sidebar.header("🗓️ Payroll Cycle Information")
-pay_date = st.sidebar.text_input("4. Pay Date:", value="2026-09-15")
-sip_month = st.sidebar.selectbox("5. SIP month to pay:", options=[3, 6, 9, 12], index=2)
+pay_date = st.sidebar.text_input("Pay Date:", placeholder="08/31/2026")
+sip_month = st.sidebar.selectbox("SIP month to pay:", options=["",3, 6, 9, 12])
 
 # File uploader on main screen
 st.subheader("📁 Step 1: Upload Payroll File (payfile_Dummy)")
