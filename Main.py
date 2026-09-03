@@ -672,5 +672,3 @@ if uploaded_file is not None:
                         
     except Exception as e:
         st.error(f"An error occurred while reading the Excel file: {e}")
-else:
-    st.info("💡 Please drag and drop or select the Payfile file to start.")
