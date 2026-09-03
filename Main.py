@@ -274,7 +274,7 @@ password = st.sidebar.text_input("Gmail App Password (16 characters):", type="pa
 cc_input = st.sidebar.text_input("CC Emails (Separated by commas):", placeholder="manager@example.com, hr@example.com")
 
 st.sidebar.markdown("---")
-st.sidebar.header("✉️ Email Subject Configuration")
+st.sidebar.header("✉️ Email Subject")
 email_subject_template = st.sidebar.text_input(
     "Email Subject:", 
     placeholder="June No SIP Payout Notification"
