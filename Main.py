@@ -5,6 +5,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+import os
 import sys
 
 # Set up Streamlit Page Configuration
@@ -580,7 +581,7 @@ if uploaded_file is not None:
                         # Handle Send Trigger
                         if send_clicked:
                             if not sender_email or not password:
-                                st.error("⚠️ Please fill in both the Sender Email and Gmail App Password in the sidebar before sending!")
+                                st.error("Please fill in both the Sender Email and Gmail App Password in the sidebar before sending!")
                             else:
                                 with st.status("🚀 Connecting to server and sending emails...") as status:
                                     try:
