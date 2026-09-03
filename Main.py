@@ -232,7 +232,8 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
     html += f"""
       </table>
       
-      <p>Regards</p>
+      <p>Regards,</p>
+      <p>Sales Compensation</p>
     </body>
     </html>
     """
