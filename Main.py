@@ -3,6 +3,8 @@ import pandas as pd
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 import sys
 
 # Set up Streamlit Page Configuration
@@ -58,7 +60,7 @@ def check_column_exists(df, aliases):
     """Check if any of the aliases exist in the dataframe columns."""
     return find_column(df, aliases) is not None
 
-def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_earning, has_goal2, ytd_earnings, months_data, ytd_sum, adjustments_data, pay_date):
+def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_earning, has_goal2, ytd_earnings, months_data, ytd_sum, adjustments_data, pay_date, sip_month):
     """Generate professional Excel-style HTML table for email body with updated Table2 and Table3 logic."""
     # Determine Goal names and rows based on has_goal2 (Territory Attainment > 0%)
     if has_goal2:
@@ -73,6 +75,16 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
     else:
         goal1_label = "Goal"
         goal2_row_html = ""
+
+    # Dynamic intro message based on sip_month (Requirements 1, 2, 3, 4)
+    month_names = {
+        3: "March",
+        6: "June",
+        9: "September",
+        12: "December"
+    }
+    month_name = month_names.get(sip_month, "Current Month")
+    intro_text = f"For your information, you will not receive any SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because you have a negative true-up in {month_name} payout."
 
     # Header & Intro text
     html = f"""
@@ -122,7 +134,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
     </head>
     <body>
       <p>Hi {participant},</p>
-      <p>For your information, you will not receive any SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because you have a negative true-up in the current month payout.</p>
+      <p>{intro_text}</p>
       <p>Please see the YTD payment breakdown below for more information:</p>
       
       <table class="paysheet-table">
@@ -182,26 +194,34 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
         </tr>
     """
 
-    # 1. Negative Adjustment Rows (as requested in Table 3 requirement 1)
-    for adj_title, adj_val in adjustments_data:
+    # 1. Negative Adjustment Rows (Requirement 1)
+    # Only added if adjustments_data contains elements (which only happens if values are < 0)
+    if adjustments_data:
+        for adj_title, adj_val in adjustments_data:
+            html += f"""
+            <tr>
+              <td colspan="2" class="left-align">{adj_title}</td>
+              <td class="right-align">{format_curr(adj_val)}</td>
+            </tr>
+            """
+
+        # 2. Current Month Payout Row calculation (Requirement 2)
+        # Value = (value of row above "YTD SIP Paid" i.e. last month in months_data) + (sum of all adjustments)
+        last_month_val = months_data[-1][1] if months_data else 0.0
+        adjustments_sum = sum(val for lbl, val in adjustments_data)
+        current_month_payout = last_month_val + adjustments_sum
+        
+        # Payout row title corresponds to the payroll month (March/June/September/December Payout)
+        payout_row_title = f"{month_name} Payout"
+
         html += f"""
-        <tr>
-          <td colspan="2" class="left-align">{adj_title}</td>
-          <td class="right-align">{format_curr(adj_val)}</td>
-        </tr>
+            <tr>
+              <td colspan="2" class="left-align bold">{payout_row_title}</td>
+              <td class="right-align bold">{format_curr(current_month_payout)}</td>
+            </tr>
         """
 
-    # 2. Current Month Payout Row calculation (Requirement 2)
-    # Value = (value of row above "YTD SIP Paid") + (sum of all rows between YTD SIP Paid and Current Month Payout)
-    last_month_val = months_data[-1][1] if months_data else 0.0
-    adjustments_sum = sum(val for lbl, val in adjustments_data)
-    current_month_payout = last_month_val + adjustments_sum
-
     html += f"""
-        <tr>
-          <td colspan="2" class="left-align bold">Current Month Payout</td>
-          <td class="right-align bold">{format_curr(current_month_payout)}</td>
-        </tr>
       </table>
       
       <p>Regards</p>
@@ -210,9 +230,33 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
     """
     return html
 
+def is_file_for_participant(filename, participant_name):
+    """Check if the uploaded attachment file belongs to the participant (Requirement 5)."""
+    fn = filename.lower()
+    pn = participant_name.lower().strip()
+    
+    # Generate variations (e.g. spaces replaced by underscores, dashes, or removed)
+    pn_variations = [
+        pn,
+        pn.replace(" ", "_"),
+        pn.replace(" ", "-"),
+        pn.replace(" ", "")
+    ]
+    return any(var in fn for var in pn_variations if var)
+
+def get_participant_attachments(participant_name, uploaded_files):
+    """Retrieve all uploaded files that match the participant's name."""
+    matched_files = []
+    if not uploaded_files:
+        return matched_files
+    for f in uploaded_files:
+        if is_file_for_participant(f.name, participant_name):
+            matched_files.append(f)
+    return matched_files
+
 # App UI Design
 st.title("📧 Millie Agro SIP Payroll Email Automator")
-st.markdown("Automated system to match participant lists, apply filtering conditions, and prepare/send SIP payroll email reports.")
+st.markdown("Automated system to match participant lists, apply filtering conditions, attach matching files, and send/preview personalized SIP payroll email reports.")
 
 # Sidebar Configuration
 st.sidebar.header("⚙️ System Configuration")
@@ -245,6 +289,13 @@ sip_month = st.sidebar.selectbox("5. SIP month to pay:", options=[3, 6, 9, 12], 
 # File uploader on main screen
 st.subheader("📁 Step 1: Upload Payroll File (payfile_Dummy)")
 uploaded_file = st.file_uploader("Choose payfile_Dummy Excel file (.xlsx)", type=["xlsx"])
+
+st.subheader("📎 Step 1b: Upload Email Attachments (Optional)")
+uploaded_attachments = st.file_uploader(
+    "Upload files to attach to participant emails (Requirement 5):",
+    accept_multiple_files=True,
+    help="If you upload files, the app will match each file to a participant if their name is found in the filename (e.g. 'Christa Vish.xlsx' matches 'Christa Vish')."
+)
 
 # Parse CC list
 cc_list = [e.strip() for e in cc_input.split(",") if e.strip()]
@@ -467,7 +518,8 @@ if uploaded_file is not None:
                                 months_data=months_data,
                                 ytd_sum=monthly_sum,
                                 adjustments_data=adjustments_data,
-                                pay_date=pay_date
+                                pay_date=pay_date,
+                                sip_month=sip_month
                             )
                             
                             email_records.append({
@@ -494,7 +546,7 @@ if uploaded_file is not None:
                         # Handle Preview Trigger
                         if st.session_state.preview_clicked:
                             st.markdown("### 📝 Preview of each participant's email:")
-                            st.caption("The emails below have not been sent yet. You can verify the table format and content.")
+                            st.caption("The emails below have not been sent yet. You can verify the table format, content, and matched attachments.")
                             for item in email_records:
                                 part_name = item['participant']
                                 part_email = item['email']
@@ -503,12 +555,24 @@ if uploaded_file is not None:
                                 # Process the subject dynamically
                                 resolved_subject = email_subject_template.replace("{participant}", part_name)
                                 
+                                # Match attachments for display in preview
+                                participant_files = get_participant_attachments(part_name, uploaded_attachments)
+                                
                                 with st.expander(f"👤 {part_name} ({part_email})"):
                                     st.markdown(f"**From:** `{sender_email if sender_email else 'your_email@gmail.com'}`")
                                     st.markdown(f"**To:** `{part_email}`")
                                     if cc_list:
                                         st.markdown(f"**CC:** `{', '.join(cc_list)}`")
                                     st.markdown(f"**Subject:** `{resolved_subject}`")
+                                    
+                                    # List matched attachments in preview
+                                    if participant_files:
+                                        st.markdown("**📎 Matched Attachments:**")
+                                        for pf in participant_files:
+                                            st.markdown(f"- `{pf.name}` ({len(pf.getvalue())/1024:.1f} KB)")
+                                    else:
+                                        st.markdown("*No attachments matched for this participant.*")
+                                        
                                     st.markdown("---")
                                     # Render raw HTML in streamlit safely
                                     st.components.v1.html(html_body, height=520, scrolling=True)
@@ -531,6 +595,10 @@ if uploaded_file is not None:
                                         
                                         progress_bar = st.progress(0)
                                         
+                                        # Dynamic month name for dynamic plain text
+                                        month_names = {3: "March", 6: "June", 9: "September", 12: "December"}
+                                        month_name = month_names.get(sip_month, "Current Month")
+                                        
                                         for i, item in enumerate(email_records):
                                             part_name = item['participant']
                                             part_email = item['email']
@@ -540,7 +608,8 @@ if uploaded_file is not None:
                                             resolved_subject = email_subject_template.replace("{participant}", part_name)
                                             
                                             # Create Multipart Email
-                                            msg = MIMEMultipart('alternative')
+                                            msg = MIMEMultipart('mixed')  # use 'mixed' to support text alternative and file attachments
+                                            
                                             msg['Subject'] = resolved_subject
                                             msg['From'] = sender_email
                                             msg['To'] = part_email
@@ -552,13 +621,31 @@ if uploaded_file is not None:
                                             else:
                                                 to_addrs = [part_email]
                                                 
-                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any SIP payment in the upcoming pay cycle on {pay_date}.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
-                                            msg.attach(MIMEText(plain_text, 'plain'))
-                                            msg.attach(MIMEText(html_body, 'html'))
+                                            # Add message bodies as alternative parts
+                                            msg_alternative = MIMEMultipart('alternative')
+                                            
+                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any SIP payment in the upcoming pay cycle on {pay_date} because you have a negative true-up in {month_name} payout.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
+                                            msg_alternative.attach(MIMEText(plain_text, 'plain'))
+                                            msg_alternative.attach(MIMEText(html_body, 'html'))
+                                            
+                                            msg.attach(msg_alternative)
+                                            
+                                            # Match and add file attachments (Requirement 5)
+                                            participant_files = get_participant_attachments(part_name, uploaded_attachments)
+                                            for pf in participant_files:
+                                                part = MIMEBase('application', 'octet-stream')
+                                                part.set_payload(pf.getvalue())
+                                                encoders.encode_base64(part)
+                                                part.add_header(
+                                                    'Content-Disposition',
+                                                    f'attachment; filename="{pf.name}"'
+                                                )
+                                                msg.attach(part)
                                             
                                             try:
                                                 server.sendmail(sender_email, to_addrs, msg.as_string())
-                                                st.write(f"✅ Successfully sent to: **{part_name}** ({part_email})")
+                                                attachment_info = f" with {len(participant_files)} attachment(s)" if participant_files else ""
+                                                st.write(f"✅ Successfully sent to: **{part_name}** ({part_email}){attachment_info}")
                                                 success_count += 1
                                             except Exception as send_err:
                                                 st.write(f"❌ Error sending to **{part_name}** ({part_email}): {send_err}")
