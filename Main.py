@@ -10,7 +10,7 @@ import sys
 
 # Set up Streamlit Page Configuration
 st.set_page_config(
-    page_title="Millie Agro Payroll Summary & Email Automator",
+    page_title="No SIP Payout Notification - Email Automator",
     page_icon="📧",
     layout="wide",
     initial_sidebar_state="expanded"
