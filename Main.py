@@ -269,7 +269,8 @@ st.title("📧 No SIP Payout Notification - Email Automator")
 st.sidebar.header("⚙️ System Configuration")
 
 sender_email = st.sidebar.text_input("Sender Gmail:", placeholder="your_email@gmail.com")
-password = st.sidebar.text_input("Gmail App Password (16 characters):", type="password", placeholder="xxxx xxxx xxxx xxxx")
+password = st.sidebar.text_input("Gmail App Password (16 characters):", type="password", placeholder="xxxx xxxx xxxx xxxx",
+           help="Settings -> Accounts -> Google Account settings -> Security & Sign-in -> 2-Step Verification -> App passwords -> Add the App name, then click Create")
 cc_input = st.sidebar.text_input("CC Emails (Separated by commas):", placeholder="manager@example.com, hr@example.com")
 
 st.sidebar.markdown("---")
