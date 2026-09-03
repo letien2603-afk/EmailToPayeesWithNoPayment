@@ -367,7 +367,7 @@ if uploaded_file is not None:
                         (paysheet_df[net_comm_col].apply(parse_value) < 0)
                     ]
                     
-                    st.subheader("📊 Step 2: Statistics & Filtering Results Check")
+                    st.subheader("📊 Step 3: Statistics & Filtering Results Check")
                     
                     # 1. Process Manual Exclusions
                     if exclude_list:
