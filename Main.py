@@ -272,13 +272,13 @@ st.sidebar.header("⚙️ System Configuration")
 sender_email = st.sidebar.text_input("Sender Gmail:", placeholder="your_email@gmail.com")
 password = st.sidebar.text_input("Gmail App Password (16 characters):", type="password", placeholder="xxxx xxxx xxxx xxxx",
            help="Settings -> Accounts -> Google Account settings -> Security & Sign-in -> 2-Step Verification -> App passwords -> Add the App name, then click Create")
-cc_input = st.sidebar.text_input("CC Emails (Separated by commas):", placeholder="manager@example.com, hr@example.com")
+cc_input = st.sidebar.text_input("CC Emails (Separated by commas):", placeholder="e.g. manager@example.com, hr@example.com")
 
 st.sidebar.markdown("---")
 st.sidebar.header("✉️ Email Subject")
 email_subject_template = st.sidebar.text_input(
     "Email Subject:", 
-    placeholder="June No SIP Payout Notification"
+    placeholder="e.g. June No SIP Payout Notification"
 )
 
 st.sidebar.markdown("---")
@@ -290,7 +290,7 @@ exclude_input = st.sidebar.text_input(
 
 st.sidebar.markdown("---")
 st.sidebar.header("🗓️ Payroll Cycle Information")
-pay_date = st.sidebar.text_input("Pay Date:", placeholder="08/31/2026")
+pay_date = st.sidebar.text_input("Pay Date:", placeholder="e.g. 08/31/2026")
 sip_month = st.sidebar.selectbox("SIP month to pay:", options=["",3, 6, 9, 12])
 
 # File uploader on main screen
