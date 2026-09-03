@@ -263,8 +263,7 @@ def get_participant_attachments(participant_name, uploaded_files):
     return matched_files
 
 # App UI Design
-st.title("📧 Millie Agro SIP Payroll Email Automator")
-st.markdown("Automated system to match participant lists, apply filtering conditions, attach matching files, and send/preview personalized SIP payroll email reports.")
+st.title("📧 No SIP Payout Notification - Email Automator")
 
 # Sidebar Configuration
 st.sidebar.header("⚙️ System Configuration")
@@ -294,13 +293,12 @@ sip_month = st.sidebar.selectbox("SIP month to pay:", options=["",3, 6, 9, 12])
 
 # File uploader on main screen
 st.subheader("📁 Step 1: Upload Payroll File (payfile_Dummy)")
-uploaded_file = st.file_uploader("Choose payfile_Dummy Excel file (.xlsx)", type=["xlsx"])
+uploaded_file = st.file_uploader("Choose the Payfile file (.xlsx)", type=["xlsx"])
 
 st.subheader("📎 Step 1b: Upload Email Attachments (Optional)")
 uploaded_attachments = st.file_uploader(
-    "Upload files to attach to participant emails (Requirement 5):",
-    accept_multiple_files=True,
-    help="If you upload files, the app will match each file to a participant if their name is found in the filename (e.g. 'Christa Vish.xlsx' matches 'Christa Vish')."
+    "Upload files to attach to participant emails:",
+    accept_multiple_files=True
 )
 
 # Parse CC list
@@ -673,4 +671,4 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"An error occurred while reading the Excel file: {e}")
 else:
-    st.info("💡 Please drag and drop or select the payfile_Dummy (.xlsx) Excel file to start.")
+    st.info("💡 Please drag and drop or select the Payfile file to start.")
