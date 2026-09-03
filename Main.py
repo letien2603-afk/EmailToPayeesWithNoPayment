@@ -292,7 +292,7 @@ pay_date = st.sidebar.text_input("Pay Date:", placeholder="08/31/2026")
 sip_month = st.sidebar.selectbox("SIP month to pay:", options=["",3, 6, 9, 12])
 
 # File uploader on main screen
-st.subheader("📁 Step 1: Upload Payroll File (payfile_Dummy)")
+st.subheader("📁 Step 1: Upload Payroll File")
 uploaded_file = st.file_uploader("Choose the Payfile file (.xlsx)", type=["xlsx"])
 
 st.subheader("📎 Step 1b: Upload Email Attachments (Optional)")
