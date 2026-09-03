@@ -577,7 +577,7 @@ if uploaded_file is not None:
                                         for pf in participant_files:
                                             st.markdown(f"- `{pf.name}` ({len(pf.getvalue())/1024:.1f} KB)")
                                     else:
-                                        st.markdown("*No attachments matched for this participant.*")
+                                        st.markdown("*No attachments for this participant.*")
                                         
                                     st.markdown("---")
                                     # Render raw HTML in streamlit safely
