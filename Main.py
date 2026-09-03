@@ -61,6 +61,13 @@ def check_column_exists(df, aliases):
     """Check if any of the aliases exist in the dataframe columns."""
     return find_column(df, aliases) is not None
 
+# Dialog modal popup for missing credentials (to pop out on screen instead of showing at the bottom)
+@st.dialog("Configuration Error")
+def show_credentials_error_dialog():
+    st.error("Please fill in both the Sender Email and Gmail App Password in the sidebar before sending!")
+    if st.button("OK", use_container_width=True):
+        st.rerun()
+
 def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_earning, has_goal2, ytd_earnings, months_data, ytd_sum, adjustments_data, pay_date, sip_month):
     """Generate professional Excel-style HTML table for email body with updated Table2 and Table3 logic."""
     # Determine Goal names and rows based on has_goal2 (Territory Attainment > 0%)
@@ -581,7 +588,7 @@ if uploaded_file is not None:
                         # Handle Send Trigger
                         if send_clicked:
                             if not sender_email or not password:
-                                st.error("Please fill in both the Sender Email and Gmail App Password in the sidebar before sending!")
+                                show_credentials_error_dialog()
                             else:
                                 with st.status("🚀 Connecting to server and sending emails...") as status:
                                     try:
