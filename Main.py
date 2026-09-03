@@ -269,24 +269,22 @@ st.markdown("Automated system to match participant lists, apply filtering condit
 # Sidebar Configuration
 st.sidebar.header("⚙️ System Configuration")
 
-sender_email = st.sidebar.text_input("1. Sender Email (Gmail):", placeholder="your_email@gmail.com")
-password = st.sidebar.text_input("2. Gmail App Password (16 characters):", type="password", placeholder="xxxx xxxx xxxx xxxx")
-cc_input = st.sidebar.text_input("3. CC Emails (Separated by commas):", placeholder="manager@example.com, hr@example.com")
+sender_email = st.sidebar.text_input("Sender Gmail:", placeholder="your_email@gmail.com")
+password = st.sidebar.text_input("Gmail App Password (16 characters):", type="password", placeholder="xxxx xxxx xxxx xxxx")
+cc_input = st.sidebar.text_input("CC Emails (Separated by commas):", placeholder="manager@example.com, hr@example.com")
 
 st.sidebar.markdown("---")
 st.sidebar.header("✉️ Email Subject Configuration")
 email_subject_template = st.sidebar.text_input(
     "Email Subject:", 
-    value="Millie Agro SIP Performance and Payroll Summary - {participant}",
-    help="Use the placeholder `{participant}` to dynamically replace with each recipient's name."
+    placeholder="June No SIP Payout Notification"
 )
 
 st.sidebar.markdown("---")
 st.sidebar.header("🚫 Participant Exclusion")
-exclude_input = st.sidebar.text_area(
+exclude_input = st.sidebar.text_input(
     "Exclude Participants (Comma-separated names):",
-    placeholder="e.g. John Doe, Jane Smith",
-    help="Enter participant names exactly as they appear in the sheet to remove them from the preview and email lists."
+    placeholder="e.g. John Doe, Jane Smith"
 )
 
 st.sidebar.markdown("---")
