@@ -92,7 +92,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
         12: "December"
     }
     month_name = month_names.get(sip_month, "Current Month")
-    intro_text = f"For your information, you will not receive any SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because you have a negative true-up in {month_name} payout."
+    intro_text = f"For your information, you will not receive any SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because you have a negative true-up in {month_name}."
 
     # Header & Intro text
     html = f"""
