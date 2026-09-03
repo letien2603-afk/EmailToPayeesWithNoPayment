@@ -295,7 +295,7 @@ sip_month = st.sidebar.selectbox("SIP month to pay:", options=["",3, 6, 9, 12])
 
 # File uploader on main screen
 st.subheader("📁 Step 1: Upload Payfile")
-uploaded_file = st.file_uploader("Choose the Payfile file (.xlsx)", type=["xlsx"])
+uploaded_file = st.file_uploader("Choose the Payfile file (.xlsx)")
 
 st.subheader("📎 Step 2: Upload Email Attachments (Optional)")
 uploaded_attachments = st.file_uploader(
