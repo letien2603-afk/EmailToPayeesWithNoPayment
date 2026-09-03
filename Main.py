@@ -267,7 +267,7 @@ def get_participant_attachments(participant_name, uploaded_files):
 st.title("📧 No SIP Payout Notification - Email Automator")
 
 # Sidebar Configuration
-st.sidebar.header("⚙️ System Configuration")
+st.sidebar.header("⚙️ Fill in required information")
 
 sender_email = st.sidebar.text_input("Sender Gmail:", placeholder="your_email@gmail.com")
 password = st.sidebar.text_input("Gmail App Password (16 characters):", type="password", placeholder="xxxx xxxx xxxx xxxx",
