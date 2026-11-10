@@ -435,7 +435,7 @@ if uploaded_file is not None:
                             
                             # Mar
                             if sip_month == 3:
-                                mar_val = parse_value(get_row_val(row, paysheet_df, ["March True-up", "Mar True-up"]))
+                                mar_val = 0 #parse_value(get_row_val(row, paysheet_df, ["March True-up", "Mar True-up"])) ---edited to remove formula on 11/10/26. Default = 0
                                 months_data.append(("Mar", mar_val))
                                 monthly_sum += mar_val
                             else:
@@ -457,7 +457,7 @@ if uploaded_file is not None:
                                     
                                 # Jun
                                 if sip_month == 6:
-                                    jun_val = parse_value(get_row_val(row, paysheet_df, ["Jun True-up", "June True-up", "Jun True Up"]))
+                                    jun_val = 0 #parse_value(get_row_val(row, paysheet_df, ["Jun True-up", "June True-up", "Jun True Up"])) ---edited to remove formula on 11/10/26. Default = 0 
                                     months_data.append(("Jun", jun_val))
                                     monthly_sum += jun_val
                                 else:
@@ -479,7 +479,7 @@ if uploaded_file is not None:
                                         
                                     # Sep
                                     if sip_month == 9:
-                                        sep_val = parse_value(get_row_val(row, paysheet_df, ["Sep True-up", "September True-up", "Sep True Up"]))
+                                        sep_val = 0 #parse_value(get_row_val(row, paysheet_df, ["Sep True-up", "September True-up", "Sep True Up"])) --- edited to remove formula on 11/10/26. Default = 0
                                         months_data.append(("Sep", sep_val))
                                         monthly_sum += sep_val
                                     else:
@@ -500,7 +500,7 @@ if uploaded_file is not None:
                                             monthly_sum += nov_val
                                             
                                         # Dec
-                                        dec_val = parse_value(get_row_val(row, paysheet_df, ["Dec True-up", "December True-up", "Dec True Up", "December Paid (Q4 Month 3 True-up)"]))
+                                        dec_val = 0 #parse_value(get_row_val(row, paysheet_df, ["Dec True-up", "December True-up", "Dec True Up", "December Paid (Q4 Month 3 True-up)"])) ---edited to remove formula on 11/10/26. Default = 0
                                         months_data.append(("Dec", dec_val))
                                         monthly_sum += dec_val
 
