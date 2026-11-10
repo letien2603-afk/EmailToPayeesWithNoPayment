@@ -61,6 +61,38 @@ def check_column_exists(df, aliases):
     """Check if any of the aliases exist in the dataframe columns."""
     return find_column(df, aliases) is not None
 
+def extract_target_payees_from_excel(target_file):
+    """Extract list of target payee names from an uploaded Excel file (.xlsx or .xls)."""
+    try:
+        xls = pd.ExcelFile(target_file)
+        names = []
+        for sheet_name in xls.sheet_names:
+            df = pd.read_excel(xls, sheet_name=sheet_name)
+            df.columns = [str(c).strip() for c in df.columns]
+            target_col = find_column(df, [
+                "*Participant", "Participant", "Payee", "Payee Name", 
+                "Employee", "Employee Name", "Name", "Participant Name", "PayeeName"
+            ])
+            if target_col is not None:
+                sheet_names_list = df[target_col].dropna().astype(str).str.strip().tolist()
+                names.extend([n for n in sheet_names_list if n and n.lower() != 'nan'])
+            else:
+                if len(df.columns) >= 1:
+                    first_col_names = df.iloc[:, 0].dropna().astype(str).str.strip().tolist()
+                    names.extend([n for n in first_col_names if n and n.lower() != 'nan'])
+        # Deduplicate while preserving order
+        seen = set()
+        deduped = []
+        for n in names:
+            if n.lower() not in seen:
+                seen.add(n.lower())
+                deduped.append(n)
+        return deduped
+    except Exception as e:
+        st.error(f"Error reading target payees Excel file: {e}")
+        return []
+
+
 # Dialog modal popup for missing credentials (to pop out on screen instead of showing at the bottom)
 @st.dialog("Configuration Error")
 def show_credentials_error_dialog():
@@ -297,7 +329,14 @@ sip_month = st.sidebar.selectbox("SIP month to pay:", options=["",3, 6, 9, 12])
 st.subheader("📁 Step 1: Upload Payfile")
 uploaded_file = st.file_uploader("Choose the Payfile file (.xlsx)")
 
-st.subheader("📎 Step 2: Upload Email Attachments (Optional)")
+st.subheader("🎯 Step 2: Upload Target Payees List (Optional)")
+uploaded_target_payees_file = st.file_uploader(
+    "Upload Excel file containing payees to include (.xlsx, .xls) - Leave empty to include all eligible payees:",
+    type=["xlsx", "xls"],
+    key="target_payees_uploader"
+)
+
+st.subheader("📎 Step 3: Upload Email Attachments (Optional)")
 uploaded_attachments = st.file_uploader(
     "Upload files to attach to participant emails:",
     accept_multiple_files=True
@@ -387,9 +426,33 @@ if uploaded_file is not None:
                         (paysheet_df[net_comm_col].apply(parse_value) < 0)
                     ]
                     
-                    st.subheader("📊 Step 3: Filtering Results Check")
+                    st.subheader("📊 Step 4: Filtering Results Check")
                     
-                    # 1. Process Manual Exclusions
+                    # 1. Process Target Payees Inclusion List (if uploaded)
+                    if uploaded_target_payees_file is not None:
+                        target_payees = extract_target_payees_from_excel(uploaded_target_payees_file)
+                        if target_payees:
+                            target_payees_lower = [t.lower() for t in target_payees]
+                            raw_before_target = filtered_df[participant_col_pay].astype(str).str.strip().tolist()
+                            
+                            # Keep only payees in the target payees list
+                            filtered_df = filtered_df[filtered_df[participant_col_pay].astype(str).str.strip().str.lower().isin(target_payees_lower)]
+                            
+                            kept_names = filtered_df[participant_col_pay].astype(str).str.strip().tolist()
+                            excluded_count = len(raw_before_target) - len(kept_names)
+                            
+                            st.success(f"🎯 **Target Payees File Applied:** Found **{len(target_payees)}** target payee(s) in upload. **{len(kept_names)}** matched eligible payees in Pay Sheet (**{excluded_count}** non-matching payee(s) excluded).")
+                            
+                            # Note any target payees that were not found in eligible paysheet rows
+                            matched_lower = set(k.lower() for k in kept_names)
+                            unmatched_targets = [t for t in target_payees if t.lower() not in matched_lower]
+                            if unmatched_targets:
+                                with st.expander(f"ℹ️ {len(unmatched_targets)} target payee(s) from upload were not found among eligible payees in Pay Sheet:"):
+                                    st.write(", ".join(unmatched_targets))
+                        else:
+                            st.warning("⚠️ The uploaded target payees file contained no recognizable participant names or rows.")
+
+                    # 2. Process Manual Exclusions
                     if exclude_list:
                         raw_filtered_names = filtered_df[participant_col_pay].astype(str).str.strip().tolist()
                         to_exclude = [name for name in raw_filtered_names if name.lower() in exclude_list]
@@ -397,7 +460,7 @@ if uploaded_file is not None:
                             filtered_df = filtered_df[~filtered_df[participant_col_pay].astype(str).str.strip().str.lower().isin(exclude_list)]
                             st.info(f"🚫 **Excluded {len(to_exclude)} participant(s)** as requested: `{', '.join(to_exclude)}`")
                     
-                    # 2. Check for Missing Email Addresses and trigger warning
+                    # 3. Check for Missing Email Addresses and trigger warning
                     missing_email_df = filtered_df[filtered_df['Email'].isna() | (filtered_df['Email'].astype(str).str.strip() == '')]
                     if len(missing_email_df) > 0:
                         missing_names = missing_email_df[participant_col_pay].astype(str).str.strip().tolist()
@@ -406,7 +469,7 @@ if uploaded_file is not None:
                         filtered_df = filtered_df[~(filtered_df['Email'].isna() | (filtered_df['Email'].astype(str).str.strip() == ''))]
                     
                     total_matches = len(filtered_df)
-                    st.success(f"Found **{total_matches}** active participant(s) for the email list (Include in PayFile = 1, Net Commissions < 0, not manually excluded, and has valid email).")
+                    st.success(f"Found **{total_matches}** active participant(s) for the email list (meeting PayFile criteria, target payee list filter, exclusions, and valid email).")
                     
                     if total_matches > 0:
                         # Display preview dataframe
@@ -574,7 +637,7 @@ if uploaded_file is not None:
                             })
                         
                         # Actions
-                        st.subheader("🛠 Step 4: Preview & Send Emails")
+                        st.subheader("🛠 Step 5: Preview & Send Emails")
                         col_btn1, col_btn2 = st.columns(2)
                         
                         # Store in session state to handle action states cleanly
