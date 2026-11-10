@@ -630,7 +630,7 @@ if uploaded_file is not None:
                                             # Add message bodies as alternative parts
                                             msg_alternative = MIMEMultipart('alternative')
                                             
-                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any SIP payment in the upcoming pay cycle on {pay_date} because you have a negative true-up in {month_name} payout.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
+                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on {pay_date} because your YTD SIP Earned is less than your YTD SIP Paid.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
                                             msg_alternative.attach(MIMEText(plain_text, 'plain'))
                                             msg_alternative.attach(MIMEText(html_body, 'html'))
                                             
