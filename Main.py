@@ -332,7 +332,7 @@ uploaded_file = st.file_uploader("Choose the Payfile file (.xlsx)")
 
 st.subheader("🎯 Step 2: Upload Payees List to notify (Optional)")
 uploaded_target_payees_file = st.file_uploader(
-    "Upload Excel file containing payees to include (.xlsx, .xls) - Leave empty to include all eligible payees:",
+    "Only send email notification to payees in the uploaded file:",
     type=["xlsx", "xls"],
     key="target_payees_uploader"
 )
