@@ -186,7 +186,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
         <!-- Column Headers (as requested in Table2 structure) -->
         <tr>
           <td style="border: none;"></td>
-          <td class="bold center-align">YTD Attainment (up to sip_month)</td>
+          <td class="bold center-align">YTD Attainment {month_name}</td>
           <td class="bold right-align">YTD SIP Earned</td>
         </tr>
         
