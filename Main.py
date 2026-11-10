@@ -92,7 +92,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
         12: "December"
     }
     month_name = month_names.get(sip_month, "Current Month")
-    intro_text = f"For your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because your YTD SIP Earned is less than your YTD SIP Paid."
+    intro_text = f"For your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because your YTD SIP Earned is less than or equal to your YTD SIP Paid."
 
     # Header & Intro text
     html = f"""
