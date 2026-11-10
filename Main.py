@@ -330,7 +330,7 @@ sip_month = st.sidebar.selectbox("SIP month to pay:", options=["",3, 6, 9, 12])
 st.subheader("📁 Step 1: Upload Payfile")
 uploaded_file = st.file_uploader("Choose the Payfile file (.xlsx)")
 
-st.subheader("🎯 Step 2: Upload Target Payees List (Optional)")
+st.subheader("🎯 Step 2: Upload Payees List to notify (Optional)")
 uploaded_target_payees_file = st.file_uploader(
     "Upload Excel file containing payees to include (.xlsx, .xls) - Leave empty to include all eligible payees:",
     type=["xlsx", "xls"],
