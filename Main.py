@@ -348,6 +348,13 @@ if uploaded_file is not None:
             participant_col_pay = find_column(paysheet_df, ["*Participant", "Participant"])
             participant_col_oic = find_column(oic_df, ["*Participant", "Participant"])
             email_col_oic = find_column(oic_df, ["E-Mail Address", "Email Address", "Email", "E-Mail"])
+            manager_email_col_oic = find_column(oic_df, [
+                "Managers Email Address", 
+                "Manager's Email Address", 
+                "Manager Email Address", 
+                "Manager Email", 
+                "Managers Email"
+            ])
             
             if not participant_col_pay or not participant_col_oic or not email_col_oic:
                 st.error("Excel file structure mismatch! Please check '*Participant' and 'E-Mail Address' columns.")
@@ -355,6 +362,17 @@ if uploaded_file is not None:
                 # Match email addresses (Step 3)
                 email_map = oic_df.set_index(participant_col_oic)[email_col_oic].to_dict()
                 paysheet_df['Email'] = paysheet_df[participant_col_pay].map(email_map)
+                
+                # Match Manager's Email Address by index matching Participant
+                if manager_email_col_oic:
+                    manager_email_map = oic_df.set_index(participant_col_oic)[manager_email_col_oic].to_dict()
+                    manager_email_map_clean = {str(k).strip(): v for k, v in manager_email_map.items() if pd.notna(k)}
+                    paysheet_df['Manager Email'] = paysheet_df[participant_col_pay].map(manager_email_map).fillna(
+                        paysheet_df[participant_col_pay].astype(str).str.strip().map(manager_email_map_clean)
+                    )
+                else:
+                    st.warning("⚠️ Column 'Managers Email Address' not found in 'OIC Participant Details' sheet. Manager CC will be skipped.")
+                    paysheet_df['Manager Email'] = "" 
                 
                 # Filtering logic (Step 4 & 5)
                 include_col = find_column(paysheet_df, ["Include in This Month's PayFile? (1=Yes, 0=No)", "Include in This Month's PayFile?", "Include in PayFile"])
@@ -392,7 +410,10 @@ if uploaded_file is not None:
                     
                     if total_matches > 0:
                         # Display preview dataframe
-                        display_cols = [participant_col_pay, 'Email', include_col, net_comm_col]
+                        display_cols = [participant_col_pay, 'Email']
+                        if 'Manager Email' in paysheet_df.columns:
+                            display_cols.append('Manager Email')
+                        display_cols.extend([include_col, net_comm_col])
                         # Show some columns if exists
                         for add_c in ["YTD ATTAINMENT", "YTD Earning", "TERRITORY YTD ATTAINMENT", "TERRITORY YTD EARNING"]:
                             found_col = find_column(paysheet_df, [add_c])
@@ -528,9 +549,27 @@ if uploaded_file is not None:
                                 sip_month=sip_month
                             )
                             
+                            # Retrieve Manager Email and build combined CC list (Manager CC + Global CCs)
+                            manager_email_val = row.get('Manager Email', '')
+                            manager_email_str = str(manager_email_val).strip() if pd.notna(manager_email_val) and str(manager_email_val).strip().lower() != 'nan' else ""
+                            
+                            payee_cc_list = []
+                            if manager_email_str:
+                                for m in manager_email_str.replace(';', ',').split(','):
+                                    m_clean = m.strip()
+                                    if m_clean and m_clean.lower() not in [c.lower() for c in payee_cc_list]:
+                                        payee_cc_list.append(m_clean)
+                            
+                            # Preserve any manual global CCs from the sidebar box
+                            for c in cc_list:
+                                if c.lower() not in [m.lower() for m in payee_cc_list]:
+                                    payee_cc_list.append(c)
+                                    
                             email_records.append({
                                 'participant': participant,
                                 'email': recipient_email,
+                                'manager_email': manager_email_str,
+                                'cc_list': payee_cc_list,
                                 'html': email_html
                             })
                         
@@ -567,8 +606,9 @@ if uploaded_file is not None:
                                 with st.expander(f"👤 {part_name} ({part_email})"):
                                     st.markdown(f"**From:** `{sender_email if sender_email else 'your_email@gmail.com'}`")
                                     st.markdown(f"**To:** `{part_email}`")
-                                    if cc_list:
-                                        st.markdown(f"**CC:** `{', '.join(cc_list)}`")
+                                    item_cc = item.get('cc_list', cc_list)
+                                    if item_cc:
+                                        st.markdown(f"**CC:** `{', '.join(item_cc)}`")
                                     st.markdown(f"**Subject:** `{resolved_subject}`")
                                     
                                     # List matched attachments in preview
@@ -620,10 +660,12 @@ if uploaded_file is not None:
                                             msg['From'] = sender_email
                                             msg['To'] = part_email
                                             
-                                            # CC Addresses
-                                            if cc_list:
-                                                msg['Cc'] = ", ".join(cc_list)
-                                                to_addrs = [part_email] + cc_list
+                                            # CC Addresses (Manager CC + Global CCs)
+                                            item_cc = item.get('cc_list', cc_list)
+                                            if item_cc:
+                                                msg['Cc'] = ", ".join(item_cc)
+                                                # Deduplicate to_addrs without removing CC header
+                                                to_addrs = [part_email] + [c for c in item_cc if c.lower() != part_email.lower()]
                                             else:
                                                 to_addrs = [part_email]
                                                 
