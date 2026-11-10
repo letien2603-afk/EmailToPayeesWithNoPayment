@@ -545,7 +545,7 @@ if uploaded_file is not None:
                                     months_data.append(("Jun", jun_val))
                                     monthly_sum += jun_val
                                 else:
-                                    jun_val = parse_value(get_row_val(row, paysheet_df, ["June Paid (Q2 Month 3 True-up)", "Jun Paid (Q2 Month 3 True-up)", "June Paid (Q1 Month 3 True-up)", "Jun Paid (Q1 Month 3 True-up)"]
+                                    jun_val = parse_value(get_row_val(row, paysheet_df, ["June Paid (Q2 Month 3 True-up)", "Jun Paid (Q2 Month 3 True-up)", "June Paid (Q1 Month 3 True-up)", "Jun Paid (Q1 Month 3 True-up)"])
                                     months_data.append(("Jun", jun_val))
                                     monthly_sum += jun_val
                                     
