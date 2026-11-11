@@ -188,7 +188,7 @@ def generate_email_html(participant, goal1_earning, goal1_FY_Att_val, goal2_val,
         <tr>
           <td style="border: none;"></td>
           <td class="bold center-align">FY Attainment</p>
-                                        </p>(REV against FY Quota)</td> 
+                                        </p>(FY Revenue against FY Quota)</td> 
           <td class="bold center-align">YTD SIP Earned</p>
                                         </p>(up to {month_name})
                                         </td>
