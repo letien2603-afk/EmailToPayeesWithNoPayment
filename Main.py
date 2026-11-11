@@ -223,6 +223,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal1_FY_Att_val,
         <tr style="border: none;">
           <td colspan="3" class="bold" style="border: none; text-align: left; padding: 4px 8px;">Submitted to Payroll</td>
           </td></td>
+          <td></td>
         </tr>
     """
     
