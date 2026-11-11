@@ -216,7 +216,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal1_FY_Att_val,
         
         <!-- Blank separator row -->
         <tr style="border: none; height: 15px;">
-          <td colspan="3" style="border: none; height: 15px;"></td>
+          <td colspan="4" style="border: none; height: 15px;"></td>
         </tr>
         
         <!-- Submitted to Payroll Header -->
