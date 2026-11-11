@@ -175,7 +175,7 @@ def generate_email_html(participant, goal1_earning, goal1_FY_Att_val, goal2_earn
     <body>
       <p>Hi {participant},</p>
       <p>{intro_text}</p>
-      <p>Please see the YTD payment breakdown below for more information:</p>
+      <p>Please see the YTD payments breakdown below for more information:</p>
       
       <table class="paysheet-table">
         <!-- Participant Row -->
