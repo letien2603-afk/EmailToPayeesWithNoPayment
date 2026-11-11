@@ -124,7 +124,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
         12: "December"
     }
     month_name = month_names.get(sip_month, "Current Month")
-    intro_text = f"For your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because your YTD SIP Earned is less than or equal to your YTD SIP Paid."
+    intro_text = f"For your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because your YTD SIP Earned is {format_curr(ytd_earnings)} while your YTD SIP Paid is {format_curr(ytd_sum)}"
 
     # Header & Intro text
     html = f"""
@@ -736,7 +736,7 @@ if uploaded_file is not None:
                                             # Add message bodies as alternative parts
                                             msg_alternative = MIMEMultipart('alternative')
                                             
-                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on {pay_date} because your YTD SIP Earned is less than your YTD SIP Paid.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
+                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on {pay_date} because your YTD SIP Earned is while your YTD SIP Paid is {format_curr(ytd_sum)}.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
                                             msg_alternative.attach(MIMEText(plain_text, 'plain'))
                                             msg_alternative.attach(MIMEText(html_body, 'html'))
                                             
