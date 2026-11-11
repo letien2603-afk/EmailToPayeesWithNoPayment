@@ -187,8 +187,8 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal1_FY_Att_val,
         <!-- Column Headers (as requested in Table2 structure) -->
         <tr>
           <td style="border: none;"></td>
-          <td class="bold center-align">YTD Attainment</p>
-                                        </p>(REV against January-{month_name} Quota)</td>
+          #<td class="bold center-align">YTD Attainment</p>
+          #                              </p>(REV against January-{month_name} Quota)</td>
           <td class="bold center-align">FY Attainment</p>
                                         </p>(REV against FY Quota)</td> 
           <td class="bold center-align">YTD SIP Earned</p>
@@ -199,7 +199,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal1_FY_Att_val,
         <!-- Goal 1 / Goal Row -->
         <tr>
           <td class="left-align">{goal1_label}</td>
-          <td class="center-align">{format_pct(goal1_val)}</td>
+          #<td class="center-align">{format_pct(goal1_val)}</td>
           <td class="center-align">{format_pct(goal1_FY_Att_val)}</td> 
           <td class="right-align">{format_curr(goal1_earning)}</td>
         </tr>
@@ -611,7 +611,7 @@ if uploaded_file is not None:
                                         
                             email_html = generate_email_html(
                                 participant=participant,
-                                goal1_val=goal1_val,
+                                #goal1_val=goal1_val,
                                 goal1_earning=goal1_earning_parsed,
                                 goal1_FY_Att_val=goal1_FY_Att_val, 
                                 goal2_val=goal2_val,
