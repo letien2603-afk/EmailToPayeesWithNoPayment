@@ -100,7 +100,7 @@ def show_credentials_error_dialog():
     if st.button("OK", use_container_width=True):
         st.rerun()
 
-def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_earning, has_goal2, ytd_earnings, months_data, ytd_sum, adjustments_data, pay_date, sip_month):
+def generate_email_html(participant, goal1_val, goal1_earning, goal1_FY_Att_val, goal2_val, goal2_earning, has_goal2, ytd_earnings, months_data, ytd_sum, adjustments_data, pay_date, sip_month):
     """Generate professional Excel-style HTML table for email body with updated Table2 and Table3 logic."""
     # Determine Goal names and rows based on has_goal2 (Territory Attainment > 0%)
     if has_goal2:
@@ -188,7 +188,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
           <td style="border: none;"></td>
           <td class="bold center-align">YTD Attainment</p>
                                         </p>(up to {month_name})</td>
-          <td class="bold right-align">FY SIP Earned</td>
+          <td class="bold right-align">FY Attainment</td>   #--- edited on 11/10/26: added FY Attainment (%) to the context
           <td class="bold right-align">YTD SIP Earned</td>
         </tr>
         
@@ -196,6 +196,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
         <tr>
           <td class="left-align">{goal1_label}</td>
           <td class="center-align">{format_pct(goal1_val)}</td>
+          <td class="center-align">{format_pct(goal1_FY_Att_val)}</td> #--- edited on 11/10/26: added FY Attainment (%) to the context
           <td class="right-align">{format_curr(goal1_earning)}</td>
         </tr>
         
@@ -494,12 +495,14 @@ if uploaded_file is not None:
                             recipient_email = row['Email']
                             
                             # Retrieve Goal 1 metrics
-                            goal1_val = get_row_val(row, paysheet_df, ["YTD ATTAINMENT", "YTD Attainment", "Goal 1 FY Attainment"])
+                            goal1_val = get_row_val(row, paysheet_df, ["YTD ATTAINMENT", "YTD Attainment"])
+                            goal1_FY_Att_val = get_row_val(row, paysheet_df, ["Goal 1 Full Year Attainment", "Goal 1 FY Attainment"]) #---edited on 11/10/26: added FY Attainment Goal 1
                             goal1_earning = get_row_val(row, paysheet_df, ["YTD Earning", "YTD Earnings", "Total YTD Earnings", "YTD SIP Earnings", "YTD SIP Earned"])
                             goal1_earning_parsed = parse_value(goal1_earning)
 
                             # Retrieve Goal 2 metrics
                             goal2_val = get_row_val(row, paysheet_df, ["TERRITORY YTD ATTAINMENT", "Territory YTD Attainment", "Goal 2 FY Attainment"])
+                            goal2_FY_Att_val = get_row_val(row, paysheet_df, ["Goal 2 Full Year Attainment", "Goal 2 FY Attainment"]) #---edited on 11/10/26: added FY Attainment Goal 2
                             goal2_earning = get_row_val(row, paysheet_df, ["TERRITORY YTD EARNING", "Territory YTD Earning", "Territory YTD Earnings"])
                             
                             goal2_parsed = parse_value(goal2_val)
