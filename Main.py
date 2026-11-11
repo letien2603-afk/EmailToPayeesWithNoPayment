@@ -221,7 +221,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal1_FY_Att_val,
         
         <!-- Submitted to Payroll Header -->
         <tr style="border: none;">
-          <td colspan="4" class="bold" style="border: none; text-align: left; padding: 4px 8px;">Submitted to Payroll</td>
+          <td colspan="3" class="bold" style="border: none; text-align: left; padding: 4px 8px;">Submitted to Payroll</td>
         </tr>
     """
     
@@ -230,6 +230,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal1_FY_Att_val,
         html += f"""
         <tr>
           <td colspan="2" class="left-align">{month_lbl}</td>
+          </td></td>
           </td></td>
           <td class="right-align">{format_curr(val)}</td>
         </tr>
