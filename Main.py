@@ -100,7 +100,8 @@ def show_credentials_error_dialog():
     if st.button("OK", use_container_width=True):
         st.rerun()
 
-def generate_email_html(participant, goal1_val, goal1_earning, goal1_FY_Att_val, goal2_val, goal2_earning, goal2_FY_Att_val, has_goal2, ytd_earnings, months_data, ytd_sum, adjustments_data, pay_date, sip_month):
+def generate_email_html(participant #, goal1_val
+                        , goal1_earning, goal1_FY_Att_val, goal2_val, goal2_earning, goal2_FY_Att_val, has_goal2, ytd_earnings, months_data, ytd_sum, adjustments_data, pay_date, sip_month):
     """Generate professional Excel-style HTML table for email body with updated Table2 and Table3 logic."""
     # Determine Goal names and rows based on has_goal2 (Territory Attainment > 0%)
     if has_goal2:
