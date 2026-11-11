@@ -197,7 +197,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal1_FY_Att_val,
         <tr>
           <td class="left-align">{goal1_label}</td>
           <td class="center-align">{format_pct(goal1_val)}</td>
-          <td class="center-align">{format_pct(goal1_FY_Att_val)}</td> #--- edited on 11/10/26: added FY Attainment (%) to the context
+          <td class="center-align">{format_pct(goal1_FY_Att_val)}</td> # --- edited on 11/10/26: added FY Attainment (%) to the context
           <td class="right-align">{format_curr(goal1_earning)}</td>
         </tr>
         
