@@ -375,6 +375,13 @@ if uploaded_file is not None:
                 oic_sheet_name = name
                 break
                 
+        # Auto-detect FX Rate sheet name
+        fx_sheet_name = None
+        for name in ["FX Rate", "FX Rates", "FXRate", "Fx Rate", "fx rate", "FX_Rate", "FX rate"]:
+            if name in sheet_names:
+                fx_sheet_name = name
+                break
+                
         if paysheet_name is None:
             st.error(f"Could not find 'Paysheet' or 'Pay Sheet' sheet in the file. Available sheets: {sheet_names}")
         elif oic_sheet_name is None:
@@ -417,6 +424,46 @@ if uploaded_file is not None:
                 else:
                     st.warning("⚠️ Column 'Managers Email Address' not found in 'OIC Participant Details' sheet. Manager CC will be skipped.")
                     paysheet_df['Manager Email'] = "" 
+
+                # Load FX Rate Sheet and build currency conversion map
+                fx_map = {}
+                if fx_sheet_name is not None:
+                    fx_df = pd.read_excel(xls, sheet_name=fx_sheet_name)
+                    fx_df.columns = [str(c).strip() for c in fx_df.columns]
+                    payment_curr_col = find_column(fx_df, ["Payment Currency", "PaymentCurrency", "Currency", "Currency Code"])
+                    convert_usd_col = find_column(fx_df, ["Convert to USD", "ConvertToUSD", "Convert To USD", "USD Conversion Rate", "Conversion Rate", "FX Rate", "Rate"])
+                    
+                    if payment_curr_col and convert_usd_col:
+                        for _, fx_row in fx_df.iterrows():
+                            p_curr = fx_row[payment_curr_col]
+                            c_rate = fx_row[convert_usd_col]
+                            if pd.notna(p_curr) and str(p_curr).strip():
+                                key = str(p_curr).strip().upper()
+                                try:
+                                    fx_map[key] = float(parse_value(c_rate))
+                                except Exception:
+                                    fx_map[key] = 1.0
+                    else:
+                        st.warning("⚠️ Could not find 'Payment Currency' or 'Convert to USD' columns in 'FX Rate' sheet. Non-USD conversion rates will default to 1.0.")
+                
+                # Ensure USD conversion rate = 1
+                fx_map["USD"] = 1.0
+
+                # Match Currency Code in Pay Sheet and determine conversion rates
+                currency_code_col_pay = find_column(paysheet_df, ["Currency Code", "Currency", "CurrencyCode", "Payment Currency"])
+                
+                def get_conversion_rate(val):
+                    if pd.isna(val):
+                        return 1.0
+                    val_str = str(val).strip().upper()
+                    if val_str == "USD" or not val_str or val_str == "NAN":
+                        return 1.0
+                    return fx_map.get(val_str, 1.0)
+                    
+                if currency_code_col_pay:
+                    paysheet_df['Conversion Rate'] = paysheet_df[currency_code_col_pay].apply(get_conversion_rate)
+                else:
+                    paysheet_df['Conversion Rate'] = 1.0
                 
                 # Filtering logic (Step 4 & 5)
                 include_col = find_column(paysheet_df, ["Include in This Month's PayFile? (1=Yes, 0=No)", "Include in This Month's PayFile?", "Include in PayFile"])
@@ -481,6 +528,10 @@ if uploaded_file is not None:
                         display_cols = [participant_col_pay, 'Email']
                         if 'Manager Email' in paysheet_df.columns:
                             display_cols.append('Manager Email')
+                        if currency_code_col_pay:
+                            display_cols.append(currency_code_col_pay)
+                        if 'Conversion Rate' in paysheet_df.columns:
+                            display_cols.append('Conversion Rate')
                         display_cols.extend([include_col, net_comm_col])
                         # Show some columns if exists
                         for add_c in ["YTD ATTAINMENT", "YTD Earning", "TERRITORY YTD ATTAINMENT", "TERRITORY YTD EARNING"]:
@@ -495,6 +546,17 @@ if uploaded_file is not None:
                         for idx, row in filtered_df.iterrows():
                             participant = row[participant_col_pay]
                             recipient_email = row['Email']
+                            
+                            # Retrieve Currency Code and determine conversion rate
+                            if currency_code_col_pay and pd.notna(row[currency_code_col_pay]):
+                                row_curr = str(row[currency_code_col_pay]).strip()
+                            else:
+                                row_curr = "USD"
+                                
+                            if row_curr.upper() == "USD" or not row_curr or row_curr.lower() == "nan":
+                                conversion_rate = 1.0
+                            else:
+                                conversion_rate = fx_map.get(row_curr.upper(), row.get('Conversion Rate', 1.0))
                             
                             # Retrieve Goal 1 metrics
                             goal1_FY_Att_val = get_row_val(row, paysheet_df, ["Goal 1 Full Year Attainment", "Goal 1 FY Attainment"]) #---edited on 11/10/26: added FY Attainment Goal 1
@@ -603,6 +665,15 @@ if uploaded_file is not None:
                                     if val < 0:
                                         adjustments_data.append((adj_col_name, val))
                                         
+                            # Apply conversion rate to earnings
+                            goal1_earning = goal1_earning_parsed * conversion_rate
+                            goal2_earning = goal2_earning_parsed * conversion_rate
+                            ytd_earnings = ytd_earnings_parsed * conversion_rate
+
+                            goal1_earning_parsed = goal1_earning
+                            goal2_earning_parsed = goal2_earning
+                            ytd_earnings_parsed = ytd_earnings
+
                             email_html = generate_email_html(
                                 participant=participant,
                                 goal1_earning=goal1_earning_parsed,
