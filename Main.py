@@ -207,7 +207,6 @@ def generate_email_html(participant, goal1_earning, goal1_FY_Att_val, goal2_val,
         <tr>
           <td class="left-align bold underline">YTD SIP Earned</td>
           <td></td>
-          <td></td>
           <td class="right-align bold underline">{format_curr(ytd_earnings)}</td>
         </tr>
         
