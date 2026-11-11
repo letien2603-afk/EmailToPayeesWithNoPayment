@@ -234,7 +234,7 @@ def generate_email_html(participant, goal1_earning, goal1_FY_Att_val, goal2_val,
     # YTD Sum Row (YTD SIP Paid aligned under the earnings column)
     html += f"""
         <tr>
-          <td colspan="3" class="left-align bold underline">YTD SIP Paid
+          <td colspan="2" class="left-align bold underline">YTD SIP Paid
           </td>
           <td class="right-align bold underline">{format_curr(ytd_sum)}</td>
         </tr>
