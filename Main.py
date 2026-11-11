@@ -186,11 +186,11 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal1_FY_Att_val,
         <!-- Column Headers (as requested in Table2 structure) -->
         <tr>
           <td style="border: none;"></td>
-          <td class="bold center-align">YTD Attainment</p>
-                                        </p>(revenue against January-{month_name})</td>
-          <td class="bold center-align">FY Attainment</p>
+          <td class="bold right-align">YTD Attainment</p>
+                                        </p>(revenue against January-{month_name} Quota)</td>
+          <td class="bold right-align">FY Attainment</p>
                                         </p>(revenue against FY Quota)</td>   #--- edited on 11/10/26: added FY Attainment (%) to the context
-          <td class="bold center-align">YTD SIP Earned</td>
+          <td class="bold right-align">YTD SIP Earned</td>
         </tr>
         
         <!-- Goal 1 / Goal Row -->
