@@ -606,6 +606,7 @@ if uploaded_file is not None:
                                 participant=participant,
                                 goal1_val=goal1_val,
                                 goal1_earning=goal1_earning_parsed,
+                                goal1_FY_Att_val=goal1_FY_Att_val, 
                                 goal2_val=goal2_val,
                                 goal2_earning=goal2_earning_parsed,
                                 has_goal2=has_goal2,
