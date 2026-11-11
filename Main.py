@@ -188,6 +188,7 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal2_val, goal2_
           <td style="border: none;"></td>
           <td class="bold center-align">YTD Attainment</p>
                                         </p>(up to {month_name})</td>
+          <td class="bold right-align">FY SIP Earned</td>
           <td class="bold right-align">YTD SIP Earned</td>
         </tr>
         
