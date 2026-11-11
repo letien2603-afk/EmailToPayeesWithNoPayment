@@ -229,7 +229,8 @@ def generate_email_html(participant, goal1_val, goal1_earning, goal1_FY_Att_val,
     for month_lbl, val in months_data:
         html += f"""
         <tr>
-          <td colspan="2" class="left-align">{month_lbl}
+          <td colspan="3" class="left-align">{month_lbl}
+          </td>
           <td class="right-align">{format_curr(val)}</td>
         </tr>
         """
