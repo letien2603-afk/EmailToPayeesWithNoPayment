@@ -670,7 +670,7 @@ if uploaded_file is not None:
                                     if item['cc_list']:
                                         st.markdown(f"**CC:** `{', '.join(item['cc_list'])}`")
                                     st.markdown(f"**Subject:** `{resolved_subject}`")
-                                    st.markdown(f"**Pay Date:** `{item_pay_date}` (Currency: `{item.get('currency', 'USD')}`)")
+                                    #st.markdown(f"**Pay Date:** `{item_pay_date}` (Currency: `{item.get('currency', 'USD')}`)")
                                     
                                     if participant_files:
                                         st.markdown("**📎 Matched Attachments:**")
