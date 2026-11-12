@@ -666,13 +666,9 @@ if uploaded_file is not None:
                                         adjustments_data.append((adj_col_name, val))
                                         
                             # Apply conversion rate to earnings
-                            goal1_earning = goal1_earning_parsed * conversion_rate
-                            goal2_earning = goal2_earning_parsed * conversion_rate
-                            ytd_earnings = ytd_earnings_parsed * conversion_rate
-
-                            goal1_earning_parsed = goal1_earning
-                            goal2_earning_parsed = goal2_earning
-                            ytd_earnings_parsed = ytd_earnings
+                            goal1_earning_parsed = goal1_earning_parsed * conversion_rate
+                            goal2_earning_parsed = goal2_earning_parsed * conversion_rate
+                            ytd_earnings_parsed = ytd_earnings_parsed * conversion_rate
 
                             email_html = generate_email_html(
                                 participant=participant,
