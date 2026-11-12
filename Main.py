@@ -380,6 +380,8 @@ if uploaded_file is not None:
                 # Pay Sheet column identifiers
                 salary_col = find_column(paysheet_df, ["Salary (USD)", "Salary", "Base Salary (USD)", "Base Salary"])
                 target_inc_col = find_column(paysheet_df, ["Target Incentive%", "Target Incentive %", "Target Incentive", "Target Incentive Pct"])
+                goal1_quota_col_pay = find_column(paysheet_df, ["Goal 1 Quota", "Goal 1 Annual Quota", "Goal1 Quota", "Goal1 Annual Quota"])
+                goal2_quota_col_pay = find_column(paysheet_df, ["Goal 2 Quota", "Goal 2 Annual Quota", "Goal2 Quota", "Goal2 Annual Quota"])
                 ytd_rev_col = find_column(paysheet_df, ["YTD REV", "YTD Rev", "YTD Revenue", "Goal 1 YTD REV", "Goal 1 YTD Revenue"])
                 ytd_territory_rev_col = find_column(paysheet_df, ["YTD TERRITORY REV", "YTD Territory REV", "YTD Territory Rev", "YTD Territory Revenue", "Territory YTD REV"])
                 
@@ -453,13 +455,23 @@ if uploaded_file is not None:
                                 g2_weight = parse_pct_value(get_dict_val(participant, goal2_weight_map, default=0.0))
                                 
                                 g1_annual_sip = salary * target_incentive * g1_weight * conversion_rate
-                                g1_annual_quota = parse_value(get_dict_val(participant, annual_quota_map, default=0.0))
+                                # Goal 1 Annual Quota: taken from Goal 1 Quota in Pay Sheet
+                                if goal1_quota_col_pay and pd.notna(row[goal1_quota_col_pay]):
+                                    g1_annual_quota = parse_value(row[goal1_quota_col_pay])
+                                else:
+                                    g1_annual_quota = parse_value(get_dict_val(participant, annual_quota_map, default=0.0))
+                                    
                                 g1_ytd_rev = parse_value(row[ytd_rev_col]) if ytd_rev_col else 0.0
                                 g1_fy_att = (g1_ytd_rev / g1_annual_quota) if g1_annual_quota > 0 else 0.0
                                 g1_sip_earned = g1_fy_att * g1_annual_sip
                                 
                                 g2_annual_sip = salary * target_incentive * g2_weight * conversion_rate
-                                g2_annual_quota = quota2_parsed
+                                # Goal 2 Annual Quota: taken from Goal 2 Quota in Pay Sheet
+                                if goal2_quota_col_pay and pd.notna(row[goal2_quota_col_pay]):
+                                    g2_annual_quota = parse_value(row[goal2_quota_col_pay])
+                                else:
+                                    g2_annual_quota = quota2_parsed
+                                    
                                 g2_ytd_rev = parse_value(row[ytd_territory_rev_col]) if ytd_territory_rev_col else 0.0
                                 g2_fy_att = (g2_ytd_rev / g2_annual_quota) if g2_annual_quota > 0 else 0.0
                                 g2_sip_earned = g2_fy_att * g2_annual_sip
@@ -483,7 +495,12 @@ if uploaded_file is not None:
                             else:
                                 # Only 1 Goal logic
                                 annual_sip = salary * target_incentive * conversion_rate
-                                annual_quota = parse_value(get_dict_val(participant, annual_quota_map, default=0.0))
+                                # Annual Quota: taken from Goal 1 Quota in Pay Sheet
+                                if goal1_quota_col_pay and pd.notna(row[goal1_quota_col_pay]):
+                                    annual_quota = parse_value(row[goal1_quota_col_pay])
+                                else:
+                                    annual_quota = parse_value(get_dict_val(participant, annual_quota_map, default=0.0))
+                                    
                                 ytd_rev = parse_value(row[ytd_rev_col]) if ytd_rev_col else 0.0
                                 fy_att = (ytd_rev / annual_quota) if annual_quota > 0 else 0.0
                                 total_earned = fy_att * annual_sip
