@@ -666,18 +666,22 @@ if uploaded_file is not None:
                                         adjustments_data.append((adj_col_name, val))
                                         
                             # Apply conversion rate to earnings
-                            goal1_earning_converted = goal1_earning_parsed * conversion_rate
-                            goal2_earning_converted = goal2_earning_parsed * conversion_rate
-                            ytd_earnings_converted = ytd_earnings_parsed * conversion_rate
+                            goal1_earning = goal1_earning_parsed * conversion_rate
+                            goal2_earning = goal2_earning_parsed * conversion_rate
+                            ytd_earnings = ytd_earnings_parsed * conversion_rate
+
+                            goal1_earning_parsed = goal1_earning
+                            goal2_earning_parsed = goal2_earning
+                            ytd_earnings_parsed = ytd_earnings
 
                             email_html = generate_email_html(
                                 participant=participant,
-                                goal1_earning=goal1_earning_converted,
+                                goal1_earning=goal1_earning_parsed,
                                 goal1_FY_Att_val=goal1_FY_Att_val, 
-                                goal2_earning=goal2_earning_converted,
+                                goal2_earning=goal2_earning_parsed,
                                 goal2_FY_Att_val=goal2_FY_Att_val,
                                 has_goal2=has_goal2,
-                                ytd_earnings=ytd_earnings_converted,
+                                ytd_earnings=ytd_earnings_parsed,
                                 months_data=months_data,
                                 ytd_sum=monthly_sum,
                                 adjustments_data=adjustments_data,
@@ -706,6 +710,8 @@ if uploaded_file is not None:
                                 'email': recipient_email,
                                 'manager_email': manager_email_str,
                                 'cc_list': payee_cc_list,
+                                'ytd_earnings': ytd_earnings_parsed,
+                                'ytd_sum': monthly_sum,
                                 'html': email_html
                             })
                         
@@ -785,6 +791,8 @@ if uploaded_file is not None:
                                             part_name = item['participant']
                                             part_email = item['email']
                                             html_body = item['html']
+                                            ytd_earnings = item.get('ytd_earnings', 0.0)
+                                            ytd_sum = item.get('ytd_sum', 0.0)
                                             
                                             # Process the subject dynamically
                                             resolved_subject = email_subject_template.replace("{participant}", part_name)
@@ -808,7 +816,7 @@ if uploaded_file is not None:
                                             # Add message bodies as alternative parts
                                             msg_alternative = MIMEMultipart('alternative')
                                             
-                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because your YTD SIP Earned is {format_curr(ytd_earnings)} while your YTD SIP Paid is {format_curr(ytd_sum)}.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
+                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on {pay_date} because your YTD SIP Earned is {format_curr(ytd_earnings)} while your YTD SIP Paid is {format_curr(ytd_sum)}.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
                                             msg_alternative.attach(MIMEText(plain_text, 'plain'))
                                             msg_alternative.attach(MIMEText(html_body, 'html'))
                                             
