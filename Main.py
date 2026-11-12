@@ -6,7 +6,6 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 import os
-import sys
 
 # Set up Streamlit Page Configuration
 st.set_page_config(
@@ -34,12 +33,19 @@ def parse_value(val):
     except ValueError:
         return 0.0
 
+def parse_pct_value(val):
+    """Safely parse percentage to decimal float (e.g. '20%' -> 0.20, 0.20 -> 0.20, 20.0 -> 0.20 if > 1.0)."""
+    parsed = parse_value(val)
+    if parsed > 1.0:
+        return parsed / 100.0
+    return parsed
+
 def format_pct(val):
     """Format float as percentage (e.g. 0.45 -> '45.00%')."""
     return f"{parse_value(val) * 100:.2f}%"
 
 def format_curr(val):
-    """Format float as standard currency (e.g. 15000.0 -> '15,000.00')."""
+    """Format float as standard currency with 2 decimals (e.g. 15000.0 -> '15,000.00')."""
     return f"{parse_value(val):,.2f}"
 
 def find_column(df, aliases):
@@ -57,9 +63,18 @@ def get_row_val(row, df, aliases, default=0.0):
         return row[col]
     return default
 
-def check_column_exists(df, aliases):
-    """Check if any of the aliases exist in the dataframe columns."""
-    return find_column(df, aliases) is not None
+def get_dict_val(p_name, val_dict, default=0.0):
+    """Safely lookup value by participant name, case-insensitively."""
+    if not val_dict or pd.isna(p_name):
+        return default
+    p_str = str(p_name).strip()
+    if p_str in val_dict:
+        return val_dict[p_str]
+    p_lower = p_str.lower()
+    for k, v in val_dict.items():
+        if str(k).strip().lower() == p_lower:
+            return v
+    return default
 
 def extract_target_payees_from_excel(target_file):
     """Extract list of target payee names from an uploaded Excel file (.xlsx or .xls)."""
@@ -92,41 +107,58 @@ def extract_target_payees_from_excel(target_file):
         st.error(f"Error reading target payees Excel file: {e}")
         return []
 
-
-# Dialog modal popup for missing credentials (to pop out on screen instead of showing at the bottom)
+# Dialog modal popup for missing credentials
 @st.dialog("Configuration Error")
 def show_credentials_error_dialog():
     st.error("Please fill in both the Sender Email and Gmail App Password in the sidebar before sending!")
     if st.button("OK", use_container_width=True):
         st.rerun()
 
-def generate_email_html(participant, goal1_earning, goal1_FY_Att_val, goal2_earning, goal2_FY_Att_val, has_goal2, ytd_earnings, months_data, ytd_sum, adjustments_data, pay_date, sip_month):
-    """Generate professional Excel-style HTML table for email body with updated Table2 and Table3 logic."""
-    # Determine Goal names and rows based on has_goal2 (Territory Attainment > 0%)
-    if has_goal2:
-        goal1_label = "Goal 1"
-        goal2_row_html = f"""
-        <tr>
-          <td class="left-align">Goal 2</td>
-          <td class="center-align">{format_pct(goal2_FY_Att_val)}</td>
-          <td class="right-align">{format_curr(goal2_earning)}</td>
-        </tr>
-        """
-    else:
-        goal1_label = "Goal"
-        goal2_row_html = ""
-
-    # Dynamic intro message based on sip_month (Requirements 1, 2, 3, 4)
-    month_names = {
-        3: "March",
-        6: "June",
-        9: "September",
-        12: "December"
-    }
+def generate_email_html(participant, is_both_goals, m, pay_date, sip_month):
+    """Generate professional Excel-style HTML table for email body matching Both Goals or Only 1 Goal layout."""
+    month_names = {3: "March", 6: "June", 9: "September", 12: "December"}
     month_name = month_names.get(sip_month, "Current Month")
-    intro_text = f"For your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because your YTD SIP Earned is {format_curr(ytd_earnings)} while your YTD SIP Paid is {format_curr(ytd_sum)}"
+    
+    total_earned = m.get('total_sip_earned', 0.0)
+    total_paid = m.get('total_sip_paid', 0.0)
+    
+    intro_text = f"For your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because your YTD SIP Earned is {format_curr(total_earned)} while your YTD SIP Paid is {format_curr(total_paid)}."
 
-    # Header & Intro text
+    # Build rows based on whether it is Both Goals or Only 1 Goal
+    if is_both_goals:
+        table_rows = [
+            ("Goal 1 Annual SIP", format_curr(m['goal1_annual_sip']), ""),
+            ("Goal 1 Annual Quota", format_curr(m['goal1_annual_quota']), ""),
+            (f"Goal 1 YTD Revenue (Up to {month_name})", format_curr(m['goal1_ytd_rev']), ""),
+            (f"Goal 1 FY Attainment (Up to {month_name})", format_pct(m['goal1_fy_attainment']), ""),
+            ("Goal 1 SIP Earned", format_curr(m['goal1_sip_earned']), ""),
+            ("Goal 2 Annual SIP", format_curr(m['goal2_annual_sip']), ""),
+            ("Goal 2 Annual Quota", format_curr(m['goal2_annual_quota']), ""),
+            (f"Goal 2 YTD Revenue (Up to {month_name})", format_curr(m['goal2_ytd_rev']), ""),
+            (f"Goal 2 FY Attainment (Up to {month_name})", format_pct(m['goal2_fy_attainment']), ""),
+            ("Goal 2 SIP Earned", format_curr(m['goal2_sip_earned']), ""),
+            ("Total SIP Earned", format_curr(total_earned), "bg-earned"),
+            ("Total SIP Paid", format_curr(total_paid), "bg-paid")
+        ]
+    else:
+        table_rows = [
+            ("Annual SIP", format_curr(m['annual_sip']), ""),
+            ("Annual Quota", format_curr(m['annual_quota']), ""),
+            (f"YTD Revenue (Up to {month_name})", format_curr(m['ytd_rev']), ""),
+            (f"FY Attainment (Up to {month_name})", format_pct(m['fy_attainment']), ""),
+            ("Total SIP Earned", format_curr(total_earned), "bg-earned"),
+            ("Total SIP Paid", format_curr(total_paid), "bg-paid")
+        ]
+
+    rows_html = ""
+    for label, val_str, css_class in table_rows:
+        cls_attr = f' class="{css_class}"' if css_class else ""
+        rows_html += f"""
+        <tr{cls_attr}>
+          <td class="left-align">{label}</td>
+          <td class="right-align">{val_str}</td>
+        </tr>"""
+
     html = f"""
     <html>
     <head>
@@ -158,127 +190,45 @@ def generate_email_html(participant, goal1_earning, goal1_FY_Att_val, goal2_earn
       .bold {{
         font-weight: bold;
       }}
-      .underline {{
-        text-decoration: underline;
-      }}
       .left-align {{
         text-align: left;
       }}
-      .center-align {{
-        text-align: center;
-      }}
       .right-align {{
         text-align: right;
+      }}
+      .bg-earned {{
+        background-color: #d9d9d9;
+        font-weight: bold;
+      }}
+      .bg-paid {{
+        background-color: #c4bd97;
+        font-weight: bold;
       }}
     </style>
     </head>
     <body>
       <p>Hi {participant},</p>
       <p>{intro_text}</p>
-      <p>Please see the YTD payments breakdown below for more information:</p>
+      <p>Please see the YTD payment breakdown below for more information:</p>
       
       <table class="paysheet-table">
         <!-- Participant Row -->
         <tr style="border: none;">
-          <td colspan="3" class="bold" style="border: none; font-size: 12pt; padding: 6px 8px; text-align: left;">{participant}</td>
+          <td colspan="2" class="bold" style="border: none; font-size: 12pt; padding: 6px 8px; text-align: left;">{participant}</td>
         </tr>
-        
-        <!-- Column Headers (as requested in Table2 structure) -->
-        <tr>
-          <td style="border: none;"></td>
-          <td class="bold center-align">FY Attainment<br>(January-{month_name} Rev. against FY Quota)</td> 
-          <td class="bold center-align">YTD SIP Earned<br>(January-{month_name})</td>
-        </tr>
-        
-        <!-- Goal 1 / Goal Row -->
-        <tr>
-          <td class="left-align">{goal1_label}</td>
-          <td class="center-align">{format_pct(goal1_FY_Att_val)}</td> 
-          <td class="right-align">{format_curr(goal1_earning)}</td>
-        </tr>
-        
-        {goal2_row_html}
-        
-        <!-- Total YTD SIP Earned row -->
-        <tr>
-          <td class="left-align bold underline">YTD SIP Earned</td>
-          <td></td>
-          <td class="right-align bold underline">{format_curr(ytd_earnings)}</td>
-        </tr>
-        
-        <!-- Blank separator row -->
-        <tr style="border: none; height: 15px;">
-          <td colspan="3" style="border: none; height: 15px;"></td>
-        </tr>
-        
-        <!-- Submitted to Payroll Header -->
-        <tr style="border: none;">
-          <td colspan="2" class="bold" style="border: none; text-align: left; padding: 4px 8px;">Submitted to Payroll</td>
-        </tr>
-    """
-    
-    # Monthly Rows (aligned to the 3-column format)
-    for month_lbl, val in months_data:
-        html += f"""
-        <tr>
-          <td colspan="2" class="left-align">{month_lbl}
-          </td>
-          <td class="right-align">{format_curr(val)}</td>
-        </tr>
-        """
-        
-    # YTD Sum Row (YTD SIP Paid aligned under the earnings column)
-    html += f"""
-        <tr>
-          <td colspan="2" class="left-align bold underline">YTD SIP Paid
-          </td>
-          <td class="right-align bold underline">{format_curr(ytd_sum)}</td>
-        </tr>
-    """
-
-    # 1. Negative Adjustment Rows (Requirement 1)
-    # Only added if adjustments_data contains elements (which only happens if values are < 0)
-    if adjustments_data:
-        for adj_title, adj_val in adjustments_data:
-            html += f"""
-            <tr>
-              <td colspan="2" class="left-align">{adj_title}</td>
-              <td class="right-align">{format_curr(adj_val)}</td>
-            </tr>
-            """
-
-        # 2. Current Month Payout Row calculation (Requirement 2)
-        # Value = (value of row above "YTD SIP Paid" i.e. last month in months_data) + (sum of all adjustments)
-        last_month_val = months_data[-1][1] if months_data else 0.0
-        adjustments_sum = sum(val for lbl, val in adjustments_data)
-        current_month_payout = last_month_val + adjustments_sum
-        
-        # Payout row title corresponds to the payroll month (March/June/September/December Payout)
-        payout_row_title = f"{month_name} Payout"
-
-        html += f"""
-            <tr>
-              <td colspan="2" class="left-align bold">{payout_row_title}</td>
-              <td class="right-align bold">{format_curr(current_month_payout)}</td>
-            </tr>
-        """
-
-    html += f"""
+        {rows_html}
       </table>
       
-      <p>Regards,</p>
-      <p>Sales Compensation</p>
+      <p>Regards,<br>Sales Compensation</p>
     </body>
     </html>
     """
     return html
 
 def is_file_for_participant(filename, participant_name):
-    """Check if the uploaded attachment file belongs to the participant (Requirement 5)."""
+    """Check if the uploaded attachment file belongs to the participant."""
     fn = filename.lower()
     pn = participant_name.lower().strip()
-    
-    # Generate variations (e.g. spaces replaced by underscores, dashes, or removed)
     pn_variations = [
         pn,
         pn.replace(" ", "_"),
@@ -289,13 +239,9 @@ def is_file_for_participant(filename, participant_name):
 
 def get_participant_attachments(participant_name, uploaded_files):
     """Retrieve all uploaded files that match the participant's name."""
-    matched_files = []
     if not uploaded_files:
-        return matched_files
-    for f in uploaded_files:
-        if is_file_for_participant(f.name, participant_name):
-            matched_files.append(f)
-    return matched_files
+        return []
+    return [f for f in uploaded_files if is_file_for_participant(f.name, participant_name)]
 
 # App UI Design
 st.title("📧 No SIP Payout Notification - Email Automator")
@@ -316,22 +262,15 @@ email_subject_template = st.sidebar.text_input(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.header("🚫 Participant Exclusion")
-exclude_input = st.sidebar.text_input(
-    "Exclude Participants (Comma-separated names):",
-    placeholder="e.g. John Doe, Jane Smith"
-)
-
-st.sidebar.markdown("---")
 st.sidebar.header("🗓️ Payroll Cycle Information")
 pay_date = st.sidebar.text_input("Pay Date:", placeholder="e.g. 08/31/2026")
-sip_month = st.sidebar.selectbox("SIP month to pay:", options=["",3, 6, 9, 12])
+sip_month = st.sidebar.selectbox("SIP month to pay:", options=["", 3, 6, 9, 12])
 
-# File uploader on main screen
+# File uploaders on main screen
 st.subheader("📁 Step 1: Upload Payfile")
 uploaded_file = st.file_uploader("Choose the Payfile file (.xlsx)")
 
-st.subheader("🎯 Step 2: Upload Payees List to notify (Optional)")
+st.subheader("🎯 Step 2: Upload Target Payees List (Optional)")
 uploaded_target_payees_file = st.file_uploader(
     "Only send email notification to payees in the uploaded file:",
     type=["xlsx", "xls"],
@@ -344,35 +283,29 @@ uploaded_attachments = st.file_uploader(
     accept_multiple_files=True
 )
 
-# Parse CC list
+# Parse global CC list
 cc_list = [e.strip() for e in cc_input.split(",") if e.strip()]
-
-# Parse exclusion list
-exclude_list = [name.strip().lower() for name in exclude_input.split(",") if name.strip()]
 
 if uploaded_file is not None:
     st.success("File uploaded successfully! Processing data...")
     
     try:
-        # Load excel file
         xls = pd.ExcelFile(uploaded_file)
         sheet_names = xls.sheet_names
         
-        # Auto-detect Paysheet sheet name
+        # Auto-detect sheet names
         paysheet_name = None
         for name in ["Paysheet", "Pay Sheet", "PaySheet", "paysheet", "OIC Pay Sheet"]:
             if name in sheet_names:
                 paysheet_name = name
                 break
                 
-        # Auto-detect OIC Participant Details sheet name
         oic_sheet_name = None
         for name in ["OIC Participant Details", "Participant Details", "OIC Participants", "OIC Participant Details "]:
             if name in sheet_names:
                 oic_sheet_name = name
                 break
-                
-        # Auto-detect FX Rate sheet name
+
         fx_sheet_name = None
         for name in ["FX Rate", "FX Rates", "FXRate", "Fx Rate", "fx rate", "FX_Rate", "FX rate"]:
             if name in sheet_names:
@@ -384,52 +317,44 @@ if uploaded_file is not None:
         elif oic_sheet_name is None:
             st.error(f"Could not find 'OIC Participant Details' sheet in the file. Available sheets: {sheet_names}")
         else:
-            # Load Dataframes
             paysheet_df = pd.read_excel(xls, sheet_name=paysheet_name)
             oic_df = pd.read_excel(xls, sheet_name=oic_sheet_name)
             
-            # Clean column names
             paysheet_df.columns = [str(c).strip() for c in paysheet_df.columns]
             oic_df.columns = [str(c).strip() for c in oic_df.columns]
             
-            # Identify columns
             participant_col_pay = find_column(paysheet_df, ["*Participant", "Participant"])
             participant_col_oic = find_column(oic_df, ["*Participant", "Participant"])
             email_col_oic = find_column(oic_df, ["E-Mail Address", "Email Address", "Email", "E-Mail"])
             manager_email_col_oic = find_column(oic_df, [
-                "Managers Email Address", 
-                "Manager's Email Address", 
-                "Manager Email Address", 
-                "Manager Email", 
-                "Managers Email"
+                "Managers Email Address", "Manager's Email Address", 
+                "Manager Email Address", "Manager Email", "Managers Email"
             ])
-            
+            annual_quota_col_oic = find_column(oic_df, ["Annual Quota", "Annual Quota 1", "Goal 1 Annual Quota"])
+            annual_quota2_col_oic = find_column(oic_df, ["Annual Quota2", "Annual Quota 2", "Goal 2 Annual Quota"])
+            goal1_weight_col_oic = find_column(oic_df, ["Goal1 Weightage", "Goal 1 Weightage", "Goal1 Weight", "Goal 1 Weight", "Goal 1 Weight%"])
+            goal2_weight_col_oic = find_column(oic_df, ["Goal2 Weightage", "Goal 2 Weightage", "Goal2 Weight", "Goal 2 Weight", "Goal 2 Weight%"])
+
             if not participant_col_pay or not participant_col_oic or not email_col_oic:
                 st.error("Excel file structure mismatch! Please check '*Participant' and 'E-Mail Address' columns.")
             else:
-                # Match email addresses (Step 3)
+                # Build OIC lookup maps
                 email_map = oic_df.set_index(participant_col_oic)[email_col_oic].to_dict()
                 paysheet_df['Email'] = paysheet_df[participant_col_pay].map(email_map)
                 
-                # Match Manager's Email Address by index matching Participant
-                if manager_email_col_oic:
-                    manager_email_map = oic_df.set_index(participant_col_oic)[manager_email_col_oic].to_dict()
-                    manager_email_map_clean = {str(k).strip(): v for k, v in manager_email_map.items() if pd.notna(k)}
-                    paysheet_df['Manager Email'] = paysheet_df[participant_col_pay].map(manager_email_map).fillna(
-                        paysheet_df[participant_col_pay].astype(str).str.strip().map(manager_email_map_clean)
-                    )
-                else:
-                    st.warning("⚠️ Column 'Managers Email Address' not found in 'OIC Participant Details' sheet. Manager CC will be skipped.")
-                    paysheet_df['Manager Email'] = "" 
+                manager_email_map = oic_df.set_index(participant_col_oic)[manager_email_col_oic].to_dict() if manager_email_col_oic else {}
+                annual_quota_map = oic_df.set_index(participant_col_oic)[annual_quota_col_oic].to_dict() if annual_quota_col_oic else {}
+                annual_quota2_map = oic_df.set_index(participant_col_oic)[annual_quota2_col_oic].to_dict() if annual_quota2_col_oic else {}
+                goal1_weight_map = oic_df.set_index(participant_col_oic)[goal1_weight_col_oic].to_dict() if goal1_weight_col_oic else {}
+                goal2_weight_map = oic_df.set_index(participant_col_oic)[goal2_weight_col_oic].to_dict() if goal2_weight_col_oic else {}
 
-                # Load FX Rate Sheet and build currency conversion map
-                fx_map = {}
+                # Build FX conversion map
+                fx_map = {"USD": 1.0}
                 if fx_sheet_name is not None:
                     fx_df = pd.read_excel(xls, sheet_name=fx_sheet_name)
                     fx_df.columns = [str(c).strip() for c in fx_df.columns]
                     payment_curr_col = find_column(fx_df, ["Payment Currency", "PaymentCurrency", "Currency", "Currency Code"])
                     convert_usd_col = find_column(fx_df, ["Convert to USD", "ConvertToUSD", "Convert To USD", "USD Conversion Rate", "Conversion Rate", "FX Rate", "Rate"])
-                    
                     if payment_curr_col and convert_usd_col:
                         for _, fx_row in fx_df.iterrows():
                             p_curr = fx_row[payment_curr_col]
@@ -440,15 +365,8 @@ if uploaded_file is not None:
                                     fx_map[key] = float(parse_value(c_rate))
                                 except Exception:
                                     fx_map[key] = 1.0
-                    else:
-                        st.warning("⚠️ Could not find 'Payment Currency' or 'Convert to USD' columns in 'FX Rate' sheet. Non-USD conversion rates will default to 1.0.")
-                
-                # Ensure USD conversion rate = 1
-                fx_map["USD"] = 1.0
 
-                # Match Currency Code in Pay Sheet and determine conversion rates
                 currency_code_col_pay = find_column(paysheet_df, ["Currency Code", "Currency", "CurrencyCode", "Payment Currency"])
-                
                 def get_conversion_rate(val):
                     if pd.isna(val):
                         return 1.0
@@ -456,20 +374,31 @@ if uploaded_file is not None:
                     if val_str == "USD" or not val_str or val_str == "NAN":
                         return 1.0
                     return fx_map.get(val_str, 1.0)
-                    
-                if currency_code_col_pay:
-                    paysheet_df['Conversion Rate'] = paysheet_df[currency_code_col_pay].apply(get_conversion_rate)
-                else:
-                    paysheet_df['Conversion Rate'] = 1.0
+
+                paysheet_df['Conversion Rate'] = paysheet_df[currency_code_col_pay].apply(get_conversion_rate) if currency_code_col_pay else 1.0
+
+                # Pay Sheet column identifiers
+                salary_col = find_column(paysheet_df, ["Salary (USD)", "Salary", "Base Salary (USD)", "Base Salary"])
+                target_inc_col = find_column(paysheet_df, ["Target Incentive%", "Target Incentive %", "Target Incentive", "Target Incentive Pct"])
+                ytd_rev_col = find_column(paysheet_df, ["YTD REV", "YTD Rev", "YTD Revenue", "Goal 1 YTD REV", "Goal 1 YTD Revenue"])
+                ytd_territory_rev_col = find_column(paysheet_df, ["YTD TERRITORY REV", "YTD Territory REV", "YTD Territory Rev", "YTD Territory Revenue", "Territory YTD REV"])
                 
-                # Filtering logic (Step 4 & 5)
+                # Find Total SIP Paid column ("YTD Paid (Month...")
+                total_paid_col = None
+                for col in paysheet_df.columns:
+                    if "ytd paid (month" in str(col).lower():
+                        total_paid_col = col
+                        break
+                if total_paid_col is None:
+                    total_paid_col = find_column(paysheet_df, ["Total SIP Paid", "YTD SIP Paid", "YTD Paid"])
+
+                # Filtering: Include in Payfile == 1 and Net Commissions < 0
                 include_col = find_column(paysheet_df, ["Include in This Month's PayFile? (1=Yes, 0=No)", "Include in This Month's PayFile?", "Include in PayFile"])
                 net_comm_col = find_column(paysheet_df, ["Net Commissions Payable", "Net Commission Payable"])
                 
                 if not include_col or not net_comm_col:
-                    st.error("Filtering condition columns 'Include...' or 'Net Commissions Payable' not found!")
+                    st.error("Filtering condition columns 'Include in This Month's PayFile?' or 'Net Commissions Payable' not found!")
                 else:
-                    # Filter: Include in Payfile == 1 and Net Commissions < 0
                     filtered_df = paysheet_df[
                         (paysheet_df[include_col] == 1) & 
                         (paysheet_df[net_comm_col].apply(parse_value) < 0)
@@ -477,242 +406,147 @@ if uploaded_file is not None:
                     
                     st.subheader("📊 Step 4: Filtering Results Check")
                     
-                    # 1. Process Target Payees Inclusion List (if uploaded)
+                    # Target Payees List Filter (if uploaded)
                     if uploaded_target_payees_file is not None:
                         target_payees = extract_target_payees_from_excel(uploaded_target_payees_file)
                         if target_payees:
                             target_payees_lower = [t.lower() for t in target_payees]
-                            raw_before_target = filtered_df[participant_col_pay].astype(str).str.strip().tolist()
-                            
-                            # Keep only payees in the target payees list
+                            raw_before = len(filtered_df)
                             filtered_df = filtered_df[filtered_df[participant_col_pay].astype(str).str.strip().str.lower().isin(target_payees_lower)]
-                            
-                            kept_names = filtered_df[participant_col_pay].astype(str).str.strip().tolist()
-                            excluded_count = len(raw_before_target) - len(kept_names)
-                            
-                            st.success(f"🎯 **Target Payees File Applied:** Found **{len(target_payees)}** target payee(s) in upload. **{len(kept_names)}** matched eligible payees in Pay Sheet (**{excluded_count}** non-matching payee(s) excluded).")
-                            
-                            # Note any target payees that were not found in eligible paysheet rows
-                            matched_lower = set(k.lower() for k in kept_names)
-                            unmatched_targets = [t for t in target_payees if t.lower() not in matched_lower]
-                            if unmatched_targets:
-                                with st.expander(f"ℹ️ {len(unmatched_targets)} target payee(s) from upload were not found among eligible payees in Pay Sheet:"):
-                                    st.write(", ".join(unmatched_targets))
+                            kept_count = len(filtered_df)
+                            st.success(f"🎯 **Target Payees File Applied:** Kept **{kept_count}** payee(s) from target file (excluded {raw_before - kept_count} non-target payees).")
                         else:
-                            st.warning("⚠️ The uploaded target payees file contained no recognizable participant names or rows.")
+                            st.warning("⚠️ The uploaded target payees file contained no recognizable participant names.")
 
-                    # 2. Process Manual Exclusions
-                    if exclude_list:
-                        raw_filtered_names = filtered_df[participant_col_pay].astype(str).str.strip().tolist()
-                        to_exclude = [name for name in raw_filtered_names if name.lower() in exclude_list]
-                        if to_exclude:
-                            filtered_df = filtered_df[~filtered_df[participant_col_pay].astype(str).str.strip().str.lower().isin(exclude_list)]
-                            st.info(f"🚫 **Excluded {len(to_exclude)} participant(s)** as requested: `{', '.join(to_exclude)}`")
-                    
-                    # 3. Check for Missing Email Addresses and trigger warning
+                    # Check for missing email addresses
                     missing_email_df = filtered_df[filtered_df['Email'].isna() | (filtered_df['Email'].astype(str).str.strip() == '')]
                     if len(missing_email_df) > 0:
                         missing_names = missing_email_df[participant_col_pay].astype(str).str.strip().tolist()
-                        st.warning(f"⚠️ **Warning: Missing Email Address** for **{len(missing_email_df)}** participant(s): `{', '.join(missing_names)}`. They have been automatically removed from the active email and preview list.")
-                        # Remove participants with missing emails from sending list
+                        st.warning(f"⚠️ **Warning: Missing Email Address** for **{len(missing_email_df)}** participant(s): `{', '.join(missing_names)}`. They have been excluded from email sending.")
                         filtered_df = filtered_df[~(filtered_df['Email'].isna() | (filtered_df['Email'].astype(str).str.strip() == ''))]
-                    
+
                     total_matches = len(filtered_df)
-                    st.success(f"Found **{total_matches}** active participant(s) for the email list (meeting PayFile criteria, target payee list filter, exclusions, and valid email).")
-                    
+                    st.success(f"Found **{total_matches}** active participant(s) for the email list.")
+
                     if total_matches > 0:
-                        # Display preview dataframe
-                        display_cols = [participant_col_pay, 'Email']
-                        if 'Manager Email' in paysheet_df.columns:
-                            display_cols.append('Manager Email')
-                        if currency_code_col_pay:
-                            display_cols.append(currency_code_col_pay)
-                        if 'Conversion Rate' in paysheet_df.columns:
-                            display_cols.append('Conversion Rate')
-                        display_cols.extend([include_col, net_comm_col])
-                        # Show some columns if exists
-                        for add_c in ["YTD ATTAINMENT", "YTD Earning", "TERRITORY YTD ATTAINMENT", "TERRITORY YTD EARNING"]:
-                            found_col = find_column(paysheet_df, [add_c])
-                            if found_col:
-                                display_cols.append(found_col)
-                        
-                        st.dataframe(filtered_df[display_cols].astype(str), use_container_width=True)
-                        
-                        # Process each filtered participant's data to generate email contents
                         email_records = []
+                        preview_table_data = []
+
                         for idx, row in filtered_df.iterrows():
-                            participant = row[participant_col_pay]
-                            recipient_email = row['Email']
+                            participant = str(row[participant_col_pay]).strip()
+                            recipient_email = str(row['Email']).strip()
+                            conversion_rate = float(row.get('Conversion Rate', 1.0))
                             
-                            # Retrieve Currency Code and determine conversion rate
-                            if currency_code_col_pay and pd.notna(row[currency_code_col_pay]):
-                                row_curr = str(row[currency_code_col_pay]).strip()
-                            else:
-                                row_curr = "USD"
-                                
-                            if row_curr.upper() == "USD" or not row_curr or row_curr.lower() == "nan":
-                                conversion_rate = 1.0
-                            else:
-                                conversion_rate = fx_map.get(row_curr.upper(), row.get('Conversion Rate', 1.0))
-                            
-                            # Retrieve Goal 1 metrics
-                            goal1_FY_Att_val = get_row_val(row, paysheet_df, ["Goal 1 Full Year Attainment", "Goal 1 FY Attainment"]) #---edited on 11/10/26: added FY Attainment Goal 1
-                            goal1_earning = get_row_val(row, paysheet_df, ["YTD Earning", "YTD Earnings", "Total YTD Earnings", "YTD SIP Earnings", "YTD SIP Earned"])
-                            goal1_earning_parsed = parse_value(goal1_earning)
+                            salary = parse_value(row[salary_col]) if salary_col else 0.0
+                            target_incentive = parse_pct_value(row[target_inc_col]) if target_inc_col else 0.0
+                            total_paid = parse_value(row[total_paid_col]) if total_paid_col else 0.0
 
-                            # Retrieve Goal 2 metrics
-                            goal2_val = get_row_val(row, paysheet_df, ["TERRITORY YTD ATTAINMENT", "Territory YTD Attainment", "Goal 2 FY Attainment"])
-                            goal2_FY_Att_val = get_row_val(row, paysheet_df, ["Goal 2 Full Year Attainment", "Goal 2 FY Attainment"]) #---edited on 11/10/26: added FY Attainment Goal 2
-                            goal2_earning = get_row_val(row, paysheet_df, ["TERRITORY YTD EARNING", "Territory YTD Earning", "Territory YTD Earnings"])
-                            
-                            goal2_parsed = parse_value(goal2_val)
-                            has_goal2 = goal2_parsed > 0.0  # Show Goal 2 only if Territory YTD Attainment > 0%
-                            goal2_earning_parsed = parse_value(goal2_earning) if has_goal2 else 0.0
-                            
-                            # Dynamic YTD SIP Earned calculation based on has_goal2
-                            ytd_earnings_parsed = goal1_earning_parsed + goal2_earning_parsed
-                            
-                            months_data = []
-                            monthly_sum = 0.0
-                            
-                            # Jan & Feb (always included)
-                            jan_val = parse_value(get_row_val(row, paysheet_df, ["January Paid (Q1 Month 1 Draw)", "Jan Paid (Q1 Month 1 Draw)"]))
-                            feb_val = parse_value(get_row_val(row, paysheet_df, ["February Paid (Q1 Month 2 Draw)", "Feb Paid (Q1 Month 2 Draw)"]))
-                            months_data.append(("Jan", jan_val))
-                            months_data.append(("Feb", feb_val))
-                            monthly_sum += jan_val + feb_val
-                            
-                            # Mar
-                            if sip_month == 3:
-                                mar_val = 0 #parse_value(get_row_val(row, paysheet_df, ["March True-up", "Mar True-up"])) ---edited to remove formula on 11/10/26. Default = 0
-                                months_data.append(("Mar", mar_val))
-                                monthly_sum += mar_val
-                            else:
-                                mar_val = parse_value(get_row_val(row, paysheet_df, ["March Paid (Q1 Month 3 True-up)", "Mar Paid (Q1 Month 3 True-up)", "March True-up"]))
-                                months_data.append(("Mar", mar_val))
-                                monthly_sum += mar_val
-                                
-                                # Apr (Optional)
-                                if check_column_exists(paysheet_df, ["April Paid (Q2 Month 1 Draw)", "Apr Paid (Q2 Month 1 Draw)"]):
-                                    apr_val = parse_value(get_row_val(row, paysheet_df, ["April Paid (Q2 Month 1 Draw)", "Apr Paid (Q2 Month 1 Draw)"]))
-                                    months_data.append(("Apr", apr_val))
-                                    monthly_sum += apr_val
-                                    
-                                # May (Optional)
-                                if check_column_exists(paysheet_df, ["May Paid (Q2 Month 2 Draw)", "May Paid"]):
-                                    may_val = parse_value(get_row_val(row, paysheet_df, ["May Paid (Q2 Month 2 Draw)", "May Paid"]))
-                                    months_data.append(("May", may_val))
-                                    monthly_sum += may_val
-                                    
-                                # Jun
-                                if sip_month == 6:
-                                    jun_val = 0 #parse_value(get_row_val(row, paysheet_df, ["Jun True-up", "June True-up", "Jun True Up"])) ---edited to remove formula on 11/10/26. Default = 0 
-                                    months_data.append(("Jun", jun_val))
-                                    monthly_sum += jun_val
-                                else:
-                                    jun_val = parse_value(get_row_val(row, paysheet_df, ["June Paid (Q2 Month 3 True-up)", "Jun Paid (Q2 Month 3 True-up)", "June Paid (Q1 Month 3 True-up)", "Jun Paid (Q1 Month 3 True-up)"]))
-                                    months_data.append(("Jun", jun_val))
-                                    monthly_sum += jun_val
-                                    
-                                    # Jul (Optional)
-                                    if check_column_exists(paysheet_df, ["Jul Paid (Q3 Month 1 Draw)", "July Paid (Q3 Month 1 Draw)"]):
-                                        jul_val = parse_value(get_row_val(row, paysheet_df, ["Jul Paid (Q3 Month 1 Draw)", "July Paid (Q3 Month 1 Draw)"]))
-                                        months_data.append(("Jul", jul_val))
-                                        monthly_sum += jul_val
-                                        
-                                    # Aug (Optional)
-                                    if check_column_exists(paysheet_df, ["Aug Paid (Q3 Month 2 Draw)", "August Paid (Q3 Month 2 Draw)"]):
-                                        aug_val = parse_value(get_row_val(row, paysheet_df, ["Aug Paid (Q3 Month 2 Draw)", "August Paid (Q3 Month 2 Draw)"]))
-                                        months_data.append(("Aug", aug_val))
-                                        monthly_sum += aug_val
-                                        
-                                    # Sep
-                                    if sip_month == 9:
-                                        sep_val = 0 #parse_value(get_row_val(row, paysheet_df, ["Sep True-up", "September True-up", "Sep True Up"])) --- edited to remove formula on 11/10/26. Default = 0
-                                        months_data.append(("Sep", sep_val))
-                                        monthly_sum += sep_val
-                                    else:
-                                        sep_val = parse_value(get_row_val(row, paysheet_df, ["Sep Paid (Q3 Month 3 True-up)", "September Paid (Q3 Month 3 True-up)", "Sep Paid (Q1 Month 3 True-up)", "Sep Paid (Q2 Month 3 True-up)", "September Paid (Q2 Month 3 True-up)", "September Paid (Q1 Month 3 True-up)"]))
-                                        months_data.append(("Sep", sep_val))
-                                        monthly_sum += sep_val
-                                        
-                                        # Oct (Optional)
-                                        if check_column_exists(paysheet_df, ["Oct Paid (Q4 Month 1 Draw)", "October Paid (Q4 Month 1 Draw)"]):
-                                            oct_val = parse_value(get_row_val(row, paysheet_df, ["Oct Paid (Q4 Month 1 Draw)", "October Paid (Q4 Month 1 Draw)"]))
-                                            months_data.append(("Oct", oct_val))
-                                            monthly_sum += oct_val
-                                            
-                                        # Nov (Optional)
-                                        if check_column_exists(paysheet_df, ["Nov Paid (Q4 Month 2 Draw)", "November Paid (Q4 Month 2 Draw)", "Nov Paid"]):
-                                            nov_val = parse_value(get_row_val(row, paysheet_df, ["Nov Paid (Q4 Month 2 Draw)", "November Paid (Q4 Month 2 Draw)", "Nov Paid"]))
-                                            months_data.append(("Nov", nov_val))
-                                            monthly_sum += nov_val
-                                            
-                                        # Dec
-                                        dec_val = 0 #parse_value(get_row_val(row, paysheet_df, ["Dec True-up", "December True-up", "Dec True Up", "December Paid (Q4 Month 3 True-up)"])) ---edited to remove formula on 11/10/26. Default = 0
-                                        months_data.append(("Dec", dec_val))
-                                        monthly_sum += dec_val
+                            # Determine whether payee has Annual Quota2 (>0 and not blank)
+                            quota2_val_raw = get_dict_val(participant, annual_quota2_map, default=0.0)
+                            quota2_parsed = parse_value(quota2_val_raw)
+                            has_both_goals = (pd.notna(quota2_val_raw) and str(quota2_val_raw).strip() != "" and quota2_parsed > 0.0)
 
-                            # Extract negative adjustments (SDR/ISR MBO, Prior Period/2025 True-up, One Time True-up, Leadership Payout)
-                            adjustments_data = []
-                            for adj_col_name in ["SDR/ISR MBO", "Prior Period/2025 True-up", "One Time True-up", "Leadership Payout"]:
-                                actual_col = find_column(paysheet_df, [adj_col_name])
-                                if actual_col:
-                                    val = parse_value(row[actual_col])
-                                    if val < 0:
-                                        adjustments_data.append((adj_col_name, val))
-                                        
-                            # Apply conversion rate to earnings
-                            goal1_earning_parsed = goal1_earning_parsed * conversion_rate
-                            goal2_earning_parsed = goal2_earning_parsed * conversion_rate
-                            ytd_earnings_parsed = ytd_earnings_parsed * conversion_rate
+                            m = {}
+                            if has_both_goals:
+                                # Both Goals logic
+                                g1_weight = parse_pct_value(get_dict_val(participant, goal1_weight_map, default=0.0))
+                                g2_weight = parse_pct_value(get_dict_val(participant, goal2_weight_map, default=0.0))
+                                
+                                g1_annual_sip = salary * target_incentive * g1_weight * conversion_rate
+                                g1_annual_quota = parse_value(get_dict_val(participant, annual_quota_map, default=0.0))
+                                g1_ytd_rev = parse_value(row[ytd_rev_col]) if ytd_rev_col else 0.0
+                                g1_fy_att = (g1_ytd_rev / g1_annual_quota) if g1_annual_quota > 0 else 0.0
+                                g1_sip_earned = g1_fy_att * g1_annual_sip
+                                
+                                g2_annual_sip = salary * target_incentive * g2_weight * conversion_rate
+                                g2_annual_quota = quota2_parsed
+                                g2_ytd_rev = parse_value(row[ytd_territory_rev_col]) if ytd_territory_rev_col else 0.0
+                                g2_fy_att = (g2_ytd_rev / g2_annual_quota) if g2_annual_quota > 0 else 0.0
+                                g2_sip_earned = g2_fy_att * g2_annual_sip
+                                
+                                total_earned = g1_sip_earned + g2_sip_earned
+                                
+                                m = {
+                                    'goal1_annual_sip': g1_annual_sip,
+                                    'goal1_annual_quota': g1_annual_quota,
+                                    'goal1_ytd_rev': g1_ytd_rev,
+                                    'goal1_fy_attainment': g1_fy_att,
+                                    'goal1_sip_earned': g1_sip_earned,
+                                    'goal2_annual_sip': g2_annual_sip,
+                                    'goal2_annual_quota': g2_annual_quota,
+                                    'goal2_ytd_rev': g2_ytd_rev,
+                                    'goal2_fy_attainment': g2_fy_att,
+                                    'goal2_sip_earned': g2_sip_earned,
+                                    'total_sip_earned': total_earned,
+                                    'total_sip_paid': total_paid
+                                }
+                            else:
+                                # Only 1 Goal logic
+                                annual_sip = salary * target_incentive * conversion_rate
+                                annual_quota = parse_value(get_dict_val(participant, annual_quota_map, default=0.0))
+                                ytd_rev = parse_value(row[ytd_rev_col]) if ytd_rev_col else 0.0
+                                fy_att = (ytd_rev / annual_quota) if annual_quota > 0 else 0.0
+                                total_earned = fy_att * annual_sip
+                                
+                                m = {
+                                    'annual_sip': annual_sip,
+                                    'annual_quota': annual_quota,
+                                    'ytd_rev': ytd_rev,
+                                    'fy_attainment': fy_att,
+                                    'total_sip_earned': total_earned,
+                                    'total_sip_paid': total_paid
+                                }
+
+                            # Manager Email & CC list
+                            mgr_email_raw = get_dict_val(participant, manager_email_map, default="")
+                            mgr_email_str = str(mgr_email_raw).strip() if pd.notna(mgr_email_raw) and str(mgr_email_raw).strip().lower() != 'nan' else ""
+                            
+                            payee_cc_list = []
+                            if mgr_email_str:
+                                for m_email in mgr_email_str.replace(';', ',').split(','):
+                                    m_clean = m_email.strip()
+                                    if m_clean and m_clean.lower() not in [c.lower() for c in payee_cc_list]:
+                                        payee_cc_list.append(m_clean)
+                            for c in cc_list:
+                                if c.lower() not in [m_item.lower() for m_item in payee_cc_list]:
+                                    payee_cc_list.append(c)
 
                             email_html = generate_email_html(
                                 participant=participant,
-                                goal1_earning=goal1_earning_parsed,
-                                goal1_FY_Att_val=goal1_FY_Att_val, 
-                                goal2_earning=goal2_earning_parsed,
-                                goal2_FY_Att_val=goal2_FY_Att_val,
-                                has_goal2=has_goal2,
-                                ytd_earnings=ytd_earnings_parsed,
-                                months_data=months_data,
-                                ytd_sum=monthly_sum,
-                                adjustments_data=adjustments_data,
+                                is_both_goals=has_both_goals,
+                                m=m,
                                 pay_date=pay_date,
                                 sip_month=sip_month
                             )
-                            
-                            # Retrieve Manager Email and build combined CC list (Manager CC + Global CCs)
-                            manager_email_val = row.get('Manager Email', '')
-                            manager_email_str = str(manager_email_val).strip() if pd.notna(manager_email_val) and str(manager_email_val).strip().lower() != 'nan' else ""
-                            
-                            payee_cc_list = []
-                            if manager_email_str:
-                                for m in manager_email_str.replace(';', ',').split(','):
-                                    m_clean = m.strip()
-                                    if m_clean and m_clean.lower() not in [c.lower() for c in payee_cc_list]:
-                                        payee_cc_list.append(m_clean)
-                            
-                            # Preserve any manual global CCs from the sidebar box
-                            for c in cc_list:
-                                if c.lower() not in [m.lower() for m in payee_cc_list]:
-                                    payee_cc_list.append(c)
-                                    
+
                             email_records.append({
                                 'participant': participant,
                                 'email': recipient_email,
-                                'manager_email': manager_email_str,
+                                'manager_email': mgr_email_str,
                                 'cc_list': payee_cc_list,
-                                'ytd_earnings': ytd_earnings_parsed,
-                                'ytd_sum': monthly_sum,
+                                'total_sip_earned': m['total_sip_earned'],
+                                'total_sip_paid': m['total_sip_paid'],
+                                'is_both_goals': has_both_goals,
                                 'html': email_html
                             })
-                        
+
+                            preview_table_data.append({
+                                'Participant': participant,
+                                'Email': recipient_email,
+                                'Manager Email': mgr_email_str,
+                                'Table Type': "Both Goals" if has_both_goals else "Only 1 Goal",
+                                'Conversion Rate': conversion_rate,
+                                'Total SIP Earned': format_curr(m['total_sip_earned']),
+                                'Total SIP Paid': format_curr(m['total_sip_paid'])
+                            })
+
+                        # Show summary preview dataframe
+                        st.dataframe(pd.DataFrame(preview_table_data), use_container_width=True)
+
                         # Actions
                         st.subheader("🛠 Step 5: Preview & Send Emails")
                         col_btn1, col_btn2 = st.columns(2)
                         
-                        # Store in session state to handle action states cleanly
                         if 'preview_clicked' not in st.session_state:
                             st.session_state.preview_clicked = False
                             
@@ -726,27 +560,21 @@ if uploaded_file is not None:
                         # Handle Preview Trigger
                         if st.session_state.preview_clicked:
                             st.markdown("### 📝 Preview of each participant's email:")
-                            st.caption("The emails below have not been sent yet. You can verify the table format, content, and matched attachments.")
+                            st.caption("The emails below have not been sent yet. Verify table format, metrics, and matched attachments.")
                             for item in email_records:
                                 part_name = item['participant']
                                 part_email = item['email']
                                 html_body = item['html']
-                                
-                                # Process the subject dynamically
                                 resolved_subject = email_subject_template.replace("{participant}", part_name)
-                                
-                                # Match attachments for display in preview
                                 participant_files = get_participant_attachments(part_name, uploaded_attachments)
                                 
-                                with st.expander(f"👤 {part_name} ({part_email})"):
+                                with st.expander(f"👤 {part_name} ({part_email}) - [{ 'Both Goals' if item['is_both_goals'] else 'Only 1 Goal' }]"):
                                     st.markdown(f"**From:** `{sender_email if sender_email else 'your_email@gmail.com'}`")
                                     st.markdown(f"**To:** `{part_email}`")
-                                    item_cc = item.get('cc_list', cc_list)
-                                    if item_cc:
-                                        st.markdown(f"**CC:** `{', '.join(item_cc)}`")
+                                    if item['cc_list']:
+                                        st.markdown(f"**CC:** `{', '.join(item['cc_list'])}`")
                                     st.markdown(f"**Subject:** `{resolved_subject}`")
                                     
-                                    # List matched attachments in preview
                                     if participant_files:
                                         st.markdown("**📎 Matched Attachments:**")
                                         for pf in participant_files:
@@ -755,9 +583,8 @@ if uploaded_file is not None:
                                         st.markdown("*No attachments for this participant.*")
                                         
                                     st.markdown("---")
-                                    # Render raw HTML in streamlit safely
-                                    st.components.v1.html(html_body, height=520, scrolling=True)
-                                    
+                                    st.components.v1.html(html_body, height=450, scrolling=True)
+
                         # Handle Send Trigger
                         if send_clicked:
                             if not sender_email or not password:
@@ -773,10 +600,8 @@ if uploaded_file is not None:
                                         
                                         success_count = 0
                                         error_count = 0
-                                        
                                         progress_bar = st.progress(0)
                                         
-                                        # Dynamic month name for dynamic plain text
                                         month_names = {3: "March", 6: "June", 9: "September", 12: "December"}
                                         month_name = month_names.get(sip_month, "Current Month")
                                         
@@ -784,47 +609,36 @@ if uploaded_file is not None:
                                             part_name = item['participant']
                                             part_email = item['email']
                                             html_body = item['html']
-                                            ytd_earnings = item.get('ytd_earnings', 0.0)
-                                            ytd_sum = item.get('ytd_sum', 0.0)
+                                            item_cc = item.get('cc_list', [])
+                                            total_earned = item.get('total_sip_earned', 0.0)
+                                            total_paid = item.get('total_sip_paid', 0.0)
                                             
-                                            # Process the subject dynamically
                                             resolved_subject = email_subject_template.replace("{participant}", part_name)
                                             
-                                            # Create Multipart Email
-                                            msg = MIMEMultipart('mixed')  # use 'mixed' to support text alternative and file attachments
-                                            
+                                            msg = MIMEMultipart('mixed')
                                             msg['Subject'] = resolved_subject
                                             msg['From'] = sender_email
                                             msg['To'] = part_email
                                             
-                                            # CC Addresses (Manager CC + Global CCs)
-                                            item_cc = item.get('cc_list', cc_list)
                                             if item_cc:
                                                 msg['Cc'] = ", ".join(item_cc)
-                                                # Deduplicate to_addrs without removing CC header
                                                 to_addrs = [part_email] + [c for c in item_cc if c.lower() != part_email.lower()]
                                             else:
                                                 to_addrs = [part_email]
                                                 
-                                            # Add message bodies as alternative parts
                                             msg_alternative = MIMEMultipart('alternative')
-                                            
-                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on {pay_date} because your YTD SIP Earned is {format_curr(ytd_earnings)} while your YTD SIP Paid is {format_curr(ytd_sum)}.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
+                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on {pay_date} because your YTD SIP Earned is {format_curr(total_earned)} while your YTD SIP Paid is {format_curr(total_paid)}.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
                                             msg_alternative.attach(MIMEText(plain_text, 'plain'))
                                             msg_alternative.attach(MIMEText(html_body, 'html'))
-                                            
                                             msg.attach(msg_alternative)
                                             
-                                            # Match and add file attachments (Requirement 5)
+                                            # Match and add file attachments
                                             participant_files = get_participant_attachments(part_name, uploaded_attachments)
                                             for pf in participant_files:
                                                 part = MIMEBase('application', 'octet-stream')
                                                 part.set_payload(pf.getvalue())
                                                 encoders.encode_base64(part)
-                                                part.add_header(
-                                                    'Content-Disposition',
-                                                    f'attachment; filename="{pf.name}"'
-                                                )
+                                                part.add_header('Content-Disposition', f'attachment; filename="{pf.name}"')
                                                 msg.attach(part)
                                             
                                             try:
