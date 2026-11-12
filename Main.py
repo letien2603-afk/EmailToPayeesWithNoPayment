@@ -114,15 +114,21 @@ def show_credentials_error_dialog():
     if st.button("OK", use_container_width=True):
         st.rerun()
 
-def generate_email_html(participant, is_both_goals, m, pay_date, sip_month):
-    """Generate professional Excel-style HTML table for email body matching Both Goals or Only 1 Goal layout."""
+def generate_email_html(participant, is_both_goals, m, pay_date, sip_month, has_old_role=False, old_role_sip_earned=0.0, total_ytd_earnings=0.0):
+    """Generate professional Excel-style HTML table for email body matching Both Goals or Only 1 Goal layout, with optional Old Role table."""
     month_names = {3: "March", 6: "June", 9: "September", 12: "December"}
     month_name = month_names.get(sip_month, "Current Month")
     
     total_earned = m.get('total_sip_earned', 0.0)
     total_paid = m.get('total_sip_paid', 0.0)
     
-    intro_text = f"For your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because your YTD SIP Earned is {format_curr(total_earned)} while your YTD SIP Paid is {format_curr(total_paid)}."
+    # Requirement 1: If Total SIP Earned < Total YTD Earnings in Pay Sheet, use A = Total YTD Earnings in intro text
+    if has_old_role:
+        earned_display = total_ytd_earnings
+    else:
+        earned_display = total_earned
+
+    intro_text = f"For your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because your YTD SIP Earned is {format_curr(earned_display)} while your YTD SIP Paid is {format_curr(total_paid)}."
 
     # Build rows based on whether it is Both Goals or Only 1 Goal
     if is_both_goals:
@@ -159,6 +165,29 @@ def generate_email_html(participant, is_both_goals, m, pay_date, sip_month):
           <td class="right-align">{val_str}</td>
         </tr>"""
 
+    # Requirement 2 & 3: Render tables with Old Role and New Role if applicable
+    if has_old_role:
+        tables_content_html = f"""
+      <p class="bold underline" style="margin-top: 15px; margin-bottom: 6px;">Old Role</p>
+      <table class="paysheet-table" style="margin-top: 5px; margin-bottom: 15px;">
+        <tr>
+          <td class="left-align" style="min-width: 250px;">SIP Earned</td>
+          <td class="right-align" style="min-width: 90px;">{format_curr(old_role_sip_earned)}</td>
+        </tr>
+      </table>
+      
+      <p class="bold underline" style="margin-top: 18px; margin-bottom: 6px;">New Role</p>
+      <table class="paysheet-table" style="margin-top: 5px; margin-bottom: 15px;">
+        {rows_html}
+      </table>
+        """
+    else:
+        tables_content_html = f"""
+      <table class="paysheet-table" style="margin-top: 15px; margin-bottom: 15px;">
+        {rows_html}
+      </table>
+        """
+
     html = f"""
     <html>
     <head>
@@ -179,7 +208,7 @@ def generate_email_html(participant, is_both_goals, m, pay_date, sip_month):
         color: #000000;
         background-color: #ffffff;
         min-width: 360px;
-        margin-top: 15px;
+        margin-top: 10px;
         margin-bottom: 15px;
       }}
       table.paysheet-table td {{
@@ -189,6 +218,9 @@ def generate_email_html(participant, is_both_goals, m, pay_date, sip_month):
       }}
       .bold {{
         font-weight: bold;
+      }}
+      .underline {{
+        text-decoration: underline;
       }}
       .left-align {{
         text-align: left;
@@ -210,15 +242,7 @@ def generate_email_html(participant, is_both_goals, m, pay_date, sip_month):
       <p>Hi {participant},</p>
       <p>{intro_text}</p>
       <p>Please see the YTD payment breakdown below for more information:</p>
-      
-      <table class="paysheet-table">
-        <!-- Participant Row -->
-        <tr style="border: none;">
-          <td colspan="2" class="bold" style="border: none; font-size: 12pt; padding: 6px 8px; text-align: left;">{participant}</td>
-        </tr>
-        {rows_html}
-      </table>
-      
+      {tables_content_html}
       <p>Regards,<br>Sales Compensation</p>
     </body>
     </html>
@@ -384,6 +408,10 @@ if uploaded_file is not None:
                 goal2_quota_col_pay = find_column(paysheet_df, ["Goal 2 Quota", "Goal 2 Annual Quota", "Goal2 Quota", "Goal2 Annual Quota"])
                 ytd_rev_col = find_column(paysheet_df, ["YTD REV", "YTD Rev", "YTD Revenue", "Goal 1 YTD REV", "Goal 1 YTD Revenue"])
                 ytd_territory_rev_col = find_column(paysheet_df, ["YTD TERRITORY REV", "YTD Territory REV", "YTD Territory Rev", "YTD Territory Revenue", "Territory YTD REV"])
+                total_ytd_earnings_col = find_column(paysheet_df, [
+                    "Total YTD Earnings", "Total YTD Earning", "Total YTD SIP Earnings", "Total YTD SIP Earned",
+                    "YTD Earnings", "YTD Earning", "YTD SIP Earnings", "YTD SIP Earned"
+                ])
                 
                 # Find Total SIP Paid column ("YTD Paid (Month...")
                 total_paid_col = None
@@ -442,6 +470,7 @@ if uploaded_file is not None:
                             salary = parse_value(row[salary_col]) if salary_col else 0.0
                             target_incentive = parse_pct_value(row[target_inc_col]) if target_inc_col else 0.0
                             total_paid = parse_value(row[total_paid_col]) if total_paid_col else 0.0
+                            total_ytd_earnings = parse_value(row[total_ytd_earnings_col]) if total_ytd_earnings_col else 0.0
 
                             # Determine whether payee has Annual Quota2 (>0 and not blank)
                             quota2_val_raw = get_dict_val(participant, annual_quota2_map, default=0.0)
@@ -528,12 +557,19 @@ if uploaded_file is not None:
                                 if c.lower() not in [m_item.lower() for m_item in payee_cc_list]:
                                     payee_cc_list.append(c)
 
+                            # Requirement: if Total SIP Earned in either table is less than Total YTD Earnings in Pay Sheet
+                            has_old_role = (round(m['total_sip_earned'], 2) < round(total_ytd_earnings, 2)) and (total_ytd_earnings > 0.0)
+                            old_role_sip_earned = max(0.0, total_ytd_earnings - m['total_sip_earned']) if has_old_role else 0.0
+
                             email_html = generate_email_html(
                                 participant=participant,
                                 is_both_goals=has_both_goals,
                                 m=m,
                                 pay_date=pay_date,
-                                sip_month=sip_month
+                                sip_month=sip_month,
+                                has_old_role=has_old_role,
+                                old_role_sip_earned=old_role_sip_earned,
+                                total_ytd_earnings=total_ytd_earnings
                             )
 
                             email_records.append({
@@ -543,17 +579,23 @@ if uploaded_file is not None:
                                 'cc_list': payee_cc_list,
                                 'total_sip_earned': m['total_sip_earned'],
                                 'total_sip_paid': m['total_sip_paid'],
+                                'total_ytd_earnings': total_ytd_earnings,
+                                'has_old_role': has_old_role,
+                                'old_role_sip_earned': old_role_sip_earned,
                                 'is_both_goals': has_both_goals,
                                 'html': email_html
                             })
 
+                            table_type_label = ("Both Goals" if has_both_goals else "Only 1 Goal") + (" (+ Old Role)" if has_old_role else "")
                             preview_table_data.append({
                                 'Participant': participant,
                                 'Email': recipient_email,
-                                'Manager Email': mgr_email_str,
-                                'Table Type': "Both Goals" if has_both_goals else "Only 1 Goal",
+                                'Manager Email': mgr_email_str if mgr_email_str else "-",
+                                'Table Type': table_type_label,
                                 'Conversion Rate': conversion_rate,
-                                'Total SIP Earned': format_curr(m['total_sip_earned']),
+                                'Total YTD Earnings (Pay Sheet)': format_curr(total_ytd_earnings),
+                                'Total SIP Earned (New Role)': format_curr(m['total_sip_earned']),
+                                'Old Role SIP Earned': format_curr(old_role_sip_earned) if has_old_role else "-",
                                 'Total SIP Paid': format_curr(m['total_sip_paid'])
                             })
 
@@ -629,6 +671,8 @@ if uploaded_file is not None:
                                             item_cc = item.get('cc_list', [])
                                             total_earned = item.get('total_sip_earned', 0.0)
                                             total_paid = item.get('total_sip_paid', 0.0)
+                                            has_old = item.get('has_old_role', False)
+                                            earned_disp = item.get('total_ytd_earnings', total_earned) if has_old else total_earned
                                             
                                             resolved_subject = email_subject_template.replace("{participant}", part_name)
                                             
@@ -644,7 +688,7 @@ if uploaded_file is not None:
                                                 to_addrs = [part_email]
                                                 
                                             msg_alternative = MIMEMultipart('alternative')
-                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on {pay_date} because your YTD SIP Earned is {format_curr(total_earned)} while your YTD SIP Paid is {format_curr(total_paid)}.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
+                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on {pay_date} because your YTD SIP Earned is {format_curr(earned_disp)} while your YTD SIP Paid is {format_curr(total_paid)}.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
                                             msg_alternative.attach(MIMEText(plain_text, 'plain'))
                                             msg_alternative.attach(MIMEText(html_body, 'html'))
                                             msg.attach(msg_alternative)
