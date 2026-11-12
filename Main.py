@@ -181,7 +181,7 @@ def generate_email_html(participant, is_both_goals, m, pay_date, sip_month, has_
       <table class="paysheet-table">
         {colgroup_html}
         <tr>
-          <td class="left-align" style="width: 275px;">SIP Earned</td>
+          <td class="left-align" style="width: 275px;">Total SIP Earned</td>
           <td class="right-align" style="width: 110px;">{format_curr(old_role_sip_earned)}</td>
         </tr>
       </table>
