@@ -627,7 +627,6 @@ if uploaded_file is not None:
                                 'Email': recipient_email,
                                 'Manager Email': mgr_email_str if mgr_email_str else "-",
                                 'Currency': currency_code,
-                                'Pay Date': payee_pay_date,
                                 'Table Type': table_type_label,
                                 'Conversion Rate': conversion_rate,
                                 'Total YTD SIP Earned': format_curr(total_ytd_sip_earned_calc),
