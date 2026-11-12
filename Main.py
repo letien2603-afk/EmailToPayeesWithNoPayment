@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
 import smtplib
+from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-import os
 
 # Set up Streamlit Page Configuration
 st.set_page_config(
@@ -34,11 +34,9 @@ def parse_value(val):
         return 0.0
 
 def parse_pct_value(val):
-    """Safely parse percentage to decimal float (e.g. '20%' -> 0.20, 0.20 -> 0.20, 20.0 -> 0.20 if > 1.0)."""
+    """Safely parse percentage to decimal float (e.g. '20%' -> 0.20, 20.0 -> 0.20 if > 1.0)."""
     parsed = parse_value(val)
-    if parsed > 1.0:
-        return parsed / 100.0
-    return parsed
+    return (parsed / 100.0) if parsed > 1.0 else parsed
 
 def format_pct(val):
     """Format float as percentage (e.g. 0.45 -> '45.00%')."""
@@ -48,6 +46,24 @@ def format_curr(val):
     """Format float as standard currency with 2 decimals (e.g. 15000.0 -> '15,000.00')."""
     return f"{parse_value(val):,.2f}"
 
+def adjust_pay_date_for_currency(pay_date_val, currency_code):
+    """If Currency Code is CAD, advance pay_date by 1 week (7 days)."""
+    if not pay_date_val or str(currency_code).strip().upper() != 'CAD':
+        return str(pay_date_val).strip() if pay_date_val else ""
+    
+    clean_date = str(pay_date_val).strip()
+    for fmt in ('%m/%d/%Y', '%Y-%m-%d', '%m-%d-%Y', '%d/%m/%Y', '%Y/%m/%d'):
+        try:
+            dt = datetime.strptime(clean_date, fmt)
+            return (dt + timedelta(days=7)).strftime(fmt)
+        except ValueError:
+            pass
+    try:
+        dt = pd.to_datetime(clean_date)
+        return (dt + timedelta(days=7)).strftime('%m/%d/%Y' if '/' in clean_date else '%Y-%m-%d')
+    except Exception:
+        return clean_date
+
 def find_column(df, aliases):
     """Find a column in a dataframe matching any of the specified aliases (case-insensitive)."""
     for alias in aliases:
@@ -55,13 +71,6 @@ def find_column(df, aliases):
             if str(col).strip().lower() == alias.strip().lower():
                 return col
     return None
-
-def get_row_val(row, df, aliases, default=0.0):
-    """Get the row's column value based on aliases."""
-    col = find_column(df, aliases)
-    if col is not None:
-        return row[col]
-    return default
 
 def get_dict_val(p_name, val_dict, default=0.0):
     """Safely lookup value by participant name, case-insensitively."""
@@ -91,11 +100,10 @@ def extract_target_payees_from_excel(target_file):
             if target_col is not None:
                 sheet_names_list = df[target_col].dropna().astype(str).str.strip().tolist()
                 names.extend([n for n in sheet_names_list if n and n.lower() != 'nan'])
-            else:
-                if len(df.columns) >= 1:
-                    first_col_names = df.iloc[:, 0].dropna().astype(str).str.strip().tolist()
-                    names.extend([n for n in first_col_names if n and n.lower() != 'nan'])
-        # Deduplicate while preserving order
+            elif len(df.columns) >= 1:
+                first_col_names = df.iloc[:, 0].dropna().astype(str).str.strip().tolist()
+                names.extend([n for n in first_col_names if n and n.lower() != 'nan'])
+        # Deduplicate preserving order
         seen = set()
         deduped = []
         for n in names:
@@ -115,24 +123,25 @@ def show_credentials_error_dialog():
         st.rerun()
 
 def generate_email_html(participant, is_both_goals, m, pay_date, sip_month, has_old_role=False, old_role_sip_earned=0.0, total_ytd_earnings=0.0):
-    """Generate professional Excel-style HTML table for email body matching Both Goals or Only 1 Goal layout, with optional Old Role table."""
+    """Generate professional Excel-style HTML table for email body matching Both Goals or Only 1 Goal layout."""
     month_names = {3: "March", 6: "June", 9: "September", 12: "December"}
     month_name = month_names.get(sip_month, "Current Month")
     
     total_earned = m.get('total_sip_earned', 0.0)
     total_paid = m.get('total_sip_paid', 0.0)
-    
-    # Requirement 1: If Total SIP Earned < Total YTD Earnings in Pay Sheet, use A = Total YTD Earnings in intro text
-    if has_old_role:
-        earned_display = total_ytd_earnings
-    else:
-        earned_display = total_earned
+    total_ytd_sip_earned = total_earned + old_role_sip_earned
+    earned_disp_str = format_curr(total_ytd_earnings if has_old_role and total_ytd_earnings > 0 else total_earned)
 
-    intro_text = f"For your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because your YTD SIP Earned is {format_curr(earned_display)} while your YTD SIP Paid is {format_curr(total_paid)}."
+    intro_text = f"For your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on <strong>{pay_date}</strong> because your YTD SIP Earned is {earned_disp_str} while your YTD SIP Paid is {format_curr(total_paid)}."
 
-    # Build rows based on whether it is Both Goals or Only 1 Goal
+    colgroup_html = """
+        <colgroup>
+          <col style="width: 275px;">
+          <col style="width: 110px;">
+        </colgroup>"""
+
     if is_both_goals:
-        table_rows = [
+        base_rows = [
             ("Goal 1 Annual SIP", format_curr(m['goal1_annual_sip']), ""),
             ("Goal 1 Annual Quota", format_curr(m['goal1_annual_quota']), ""),
             (f"Goal 1 YTD Revenue (Up to {month_name})", format_curr(m['goal1_ytd_rev']), ""),
@@ -142,53 +151,73 @@ def generate_email_html(participant, is_both_goals, m, pay_date, sip_month, has_
             ("Goal 2 Annual Quota", format_curr(m['goal2_annual_quota']), ""),
             (f"Goal 2 YTD Revenue (Up to {month_name})", format_curr(m['goal2_ytd_rev']), ""),
             (f"Goal 2 FY Attainment (Up to {month_name})", format_pct(m['goal2_fy_attainment']), ""),
-            ("Goal 2 SIP Earned", format_curr(m['goal2_sip_earned']), ""),
-            ("Total SIP Earned", format_curr(total_earned), "bg-earned"),
-            ("Total SIP Paid", format_curr(total_paid), "bg-paid")
+            ("Goal 2 SIP Earned", format_curr(m['goal2_sip_earned']), "")
         ]
     else:
-        table_rows = [
+        base_rows = [
             ("Annual SIP", format_curr(m['annual_sip']), ""),
             ("Annual Quota", format_curr(m['annual_quota']), ""),
             (f"YTD Revenue (Up to {month_name})", format_curr(m['ytd_rev']), ""),
-            (f"FY Attainment (Up to {month_name})", format_pct(m['fy_attainment']), ""),
-            ("Total SIP Earned", format_curr(total_earned), "bg-earned"),
-            ("Total SIP Paid", format_curr(total_paid), "bg-paid")
+            (f"FY Attainment (Up to {month_name})", format_pct(m['fy_attainment']), "")
         ]
 
-    rows_html = ""
-    for label, val_str, css_class in table_rows:
-        cls_attr = f' class="{css_class}"' if css_class else ""
-        rows_html += f"""
-        <tr{cls_attr}>
-          <td class="left-align">{label}</td>
-          <td class="right-align">{val_str}</td>
+    def render_rows(rows):
+        res = ""
+        for i, (label, val_str, *css) in enumerate(rows):
+            cls = f' class="{css[0]}"' if css and css[0] else ""
+            w_left = ' style="width: 275px;"' if i == 0 else ""
+            w_right = ' style="width: 110px;"' if i == 0 else ""
+            res += f"""
+        <tr{cls}>
+          <td class="left-align"{w_left}>{label}</td>
+          <td class="right-align"{w_right}>{val_str}</td>
         </tr>"""
+        return res
 
-    # Requirement 2 & 3: Render tables with Old Role and New Role if applicable
     if has_old_role:
+        new_role_rows = base_rows + [("Total SIP Earned", format_curr(total_earned), "")]
         tables_content_html = f"""
       <p class="bold underline" style="margin-top: 15px; margin-bottom: 6px;">Old Role</p>
-      <table class="paysheet-table" style="margin-top: 5px; margin-bottom: 15px;">
+      <table class="paysheet-table">
+        {colgroup_html}
         <tr>
-          <td class="left-align" style="min-width: 250px;">SIP Earned</td>
-          <td class="right-align" style="min-width: 90px;">{format_curr(old_role_sip_earned)}</td>
+          <td class="left-align" style="width: 275px;">SIP Earned</td>
+          <td class="right-align" style="width: 110px;">{format_curr(old_role_sip_earned)}</td>
         </tr>
       </table>
       
       <p class="bold underline" style="margin-top: 18px; margin-bottom: 6px;">New Role</p>
-      <table class="paysheet-table" style="margin-top: 5px; margin-bottom: 15px;">
-        {rows_html}
+      <table class="paysheet-table">
+        {colgroup_html}
+        {render_rows(new_role_rows)}
+      </table>
+
+      <!-- Summary table for Total YTD SIP Earned and Total SIP Paid -->
+      <table class="paysheet-table" style="margin-top: 15px; margin-bottom: 15px;">
+        {colgroup_html}
+        <tr class="bg-earned">
+          <td class="left-align" style="width: 275px;">Total YTD SIP Earned</td>
+          <td class="right-align" style="width: 110px;">{format_curr(total_ytd_sip_earned)}</td>
+        </tr>
+        <tr class="bg-paid">
+          <td class="left-align">Total SIP Paid</td>
+          <td class="right-align">{format_curr(total_paid)}</td>
+        </tr>
       </table>
         """
     else:
+        table_rows = base_rows + [
+            ("Total SIP Earned", format_curr(total_earned), "bg-earned"),
+            ("Total SIP Paid", format_curr(total_paid), "bg-paid")
+        ]
         tables_content_html = f"""
       <table class="paysheet-table" style="margin-top: 15px; margin-bottom: 15px;">
-        {rows_html}
+        {colgroup_html}
+        {render_rows(table_rows)}
       </table>
         """
 
-    html = f"""
+    return f"""
     <html>
     <head>
     <style>
@@ -207,14 +236,17 @@ def generate_email_html(participant, is_both_goals, m, pay_date, sip_month, has_
         font-size: 11pt;
         color: #000000;
         background-color: #ffffff;
-        min-width: 360px;
-        margin-top: 10px;
+        width: 385px;
+        table-layout: fixed;
+        margin-top: 5px;
         margin-bottom: 15px;
       }}
       table.paysheet-table td {{
         border: 1px solid #d3d3d3;
         padding: 4px 8px;
         vertical-align: middle;
+        overflow: hidden;
+        word-wrap: break-word;
       }}
       .bold {{
         font-weight: bold;
@@ -247,18 +279,12 @@ def generate_email_html(participant, is_both_goals, m, pay_date, sip_month, has_
     </body>
     </html>
     """
-    return html
 
 def is_file_for_participant(filename, participant_name):
     """Check if the uploaded attachment file belongs to the participant."""
     fn = filename.lower()
     pn = participant_name.lower().strip()
-    pn_variations = [
-        pn,
-        pn.replace(" ", "_"),
-        pn.replace(" ", "-"),
-        pn.replace(" ", "")
-    ]
+    pn_variations = [pn, pn.replace(" ", "_"), pn.replace(" ", "-"), pn.replace(" ", "")]
     return any(var in fn for var in pn_variations if var)
 
 def get_participant_attachments(participant_name, uploaded_files):
@@ -472,6 +498,10 @@ if uploaded_file is not None:
                             total_paid = parse_value(row[total_paid_col]) if total_paid_col else 0.0
                             total_ytd_earnings = parse_value(row[total_ytd_earnings_col]) if total_ytd_earnings_col else 0.0
 
+                            # Determine currency and payee-specific pay date (CAD = +1 week)
+                            currency_code = str(row[currency_code_col_pay]).strip().upper() if currency_code_col_pay and pd.notna(row[currency_code_col_pay]) else "USD"
+                            payee_pay_date = adjust_pay_date_for_currency(pay_date, currency_code)
+
                             # Determine whether payee has Annual Quota2 (>0 and not blank)
                             quota2_val_raw = get_dict_val(participant, annual_quota2_map, default=0.0)
                             quota2_parsed = parse_value(quota2_val_raw)
@@ -565,23 +595,28 @@ if uploaded_file is not None:
                                 participant=participant,
                                 is_both_goals=has_both_goals,
                                 m=m,
-                                pay_date=pay_date,
+                                pay_date=payee_pay_date,
                                 sip_month=sip_month,
                                 has_old_role=has_old_role,
                                 old_role_sip_earned=old_role_sip_earned,
                                 total_ytd_earnings=total_ytd_earnings
                             )
 
+                            total_ytd_sip_earned_calc = (m['total_sip_earned'] + old_role_sip_earned) if has_old_role else m['total_sip_earned']
+
                             email_records.append({
                                 'participant': participant,
                                 'email': recipient_email,
                                 'manager_email': mgr_email_str,
                                 'cc_list': payee_cc_list,
+                                'pay_date': payee_pay_date,
+                                'currency': currency_code,
                                 'total_sip_earned': m['total_sip_earned'],
                                 'total_sip_paid': m['total_sip_paid'],
                                 'total_ytd_earnings': total_ytd_earnings,
                                 'has_old_role': has_old_role,
                                 'old_role_sip_earned': old_role_sip_earned,
+                                'total_ytd_sip_earned': total_ytd_sip_earned_calc,
                                 'is_both_goals': has_both_goals,
                                 'html': email_html
                             })
@@ -591,9 +626,11 @@ if uploaded_file is not None:
                                 'Participant': participant,
                                 'Email': recipient_email,
                                 'Manager Email': mgr_email_str if mgr_email_str else "-",
+                                'Currency': currency_code,
+                                'Pay Date': payee_pay_date,
                                 'Table Type': table_type_label,
                                 'Conversion Rate': conversion_rate,
-                                'Total YTD Earnings (Pay Sheet)': format_curr(total_ytd_earnings),
+                                'Total YTD SIP Earned': format_curr(total_ytd_sip_earned_calc),
                                 'Total SIP Earned (New Role)': format_curr(m['total_sip_earned']),
                                 'Old Role SIP Earned': format_curr(old_role_sip_earned) if has_old_role else "-",
                                 'Total SIP Paid': format_curr(m['total_sip_paid'])
@@ -626,6 +663,7 @@ if uploaded_file is not None:
                                 html_body = item['html']
                                 resolved_subject = email_subject_template.replace("{participant}", part_name)
                                 participant_files = get_participant_attachments(part_name, uploaded_attachments)
+                                item_pay_date = item.get('pay_date', pay_date)
                                 
                                 with st.expander(f"👤 {part_name} ({part_email}) - [{ 'Both Goals' if item['is_both_goals'] else 'Only 1 Goal' }]"):
                                     st.markdown(f"**From:** `{sender_email if sender_email else 'your_email@gmail.com'}`")
@@ -633,6 +671,7 @@ if uploaded_file is not None:
                                     if item['cc_list']:
                                         st.markdown(f"**CC:** `{', '.join(item['cc_list'])}`")
                                     st.markdown(f"**Subject:** `{resolved_subject}`")
+                                    st.markdown(f"**Pay Date:** `{item_pay_date}` (Currency: `{item.get('currency', 'USD')}`)")
                                     
                                     if participant_files:
                                         st.markdown("**📎 Matched Attachments:**")
@@ -672,7 +711,8 @@ if uploaded_file is not None:
                                             total_earned = item.get('total_sip_earned', 0.0)
                                             total_paid = item.get('total_sip_paid', 0.0)
                                             has_old = item.get('has_old_role', False)
-                                            earned_disp = item.get('total_ytd_earnings', total_earned) if has_old else total_earned
+                                            earned_disp = item.get('total_ytd_sip_earned', total_earned) if has_old else total_earned
+                                            item_pay_date = item.get('pay_date', pay_date)
                                             
                                             resolved_subject = email_subject_template.replace("{participant}", part_name)
                                             
@@ -688,7 +728,7 @@ if uploaded_file is not None:
                                                 to_addrs = [part_email]
                                                 
                                             msg_alternative = MIMEMultipart('alternative')
-                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on {pay_date} because your YTD SIP Earned is {format_curr(earned_disp)} while your YTD SIP Paid is {format_curr(total_paid)}.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
+                                            plain_text = f"Hi {part_name},\n\nFor your information, you will not receive any {month_name} SIP payment in the upcoming pay cycle on {item_pay_date} because your YTD SIP Earned is {format_curr(earned_disp)} while your YTD SIP Paid is {format_curr(total_paid)}.\n\nPlease check your email client with HTML support to view your full YTD performance and payment breakdown table."
                                             msg_alternative.attach(MIMEText(plain_text, 'plain'))
                                             msg_alternative.attach(MIMEText(html_body, 'html'))
                                             msg.attach(msg_alternative)
