@@ -273,7 +273,7 @@ def generate_email_html(participant, is_both_goals, m, pay_date, sip_month, has_
     <body>
       <p>Hi {participant},</p>
       <p>{intro_text}</p>
-      <p>Please see the YTD payments breakdown below for more information. Note: the data is pulled from the date that the commission is finalized.</p>
+      <p>Please see the YTD payments breakdown below for more information. \x1B[Note: the data is pulled from the date that the commission is finalized\x1B.</p>
       {tables_content_html}
       <p>Regards,<br>Sales Compensation</p>
     </body>
